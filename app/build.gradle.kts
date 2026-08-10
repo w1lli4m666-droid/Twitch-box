@@ -27,8 +27,11 @@ android {
         applicationId = "com.github.andreyasadchy.xtra"
         minSdk = 21
         targetSdk = 37
-        versionCode = 126
-        versionName = "2.58.5-TV6"
+        versionCode = 127
+        versionName = "2.58.5.2"
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+        }
     }
 
     splits {

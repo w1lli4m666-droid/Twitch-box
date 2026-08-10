@@ -4,7 +4,7 @@
   <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="144" alt="Twitch-box app icon">
 </p>
 
-Twitch-box is an Android TV-oriented Twitch browser and player based on [Xtra](https://github.com/crackededed/Xtra). It is designed for TV remotes, supports Android 5.0 and later, and lets you follow channels locally without signing in to a Twitch account.
+Twitch-box is an Android TV-oriented Twitch browser and player based on [Xtra](https://github.com/crackededed/Xtra). The installed application is named **Twitch**. It is designed for TV remotes, supports Android 5.0 and later, and lets you follow channels locally without signing in to a Twitch account.
 
 ## Features
 
@@ -24,9 +24,9 @@ Download the latest APKs from the [GitHub Releases page](https://github.com/w1ll
 
 | APK | Recommended for |
 | --- | --- |
-| `Twitch-box-v2.58.5-TV6-armeabi-v7a.apk` | 32-bit ARM TV boxes and older Android devices |
-| `Twitch-box-v2.58.5-TV6-arm64-v8a.apk` | 64-bit ARM Android TV devices |
-| `Twitch-box-v2.58.5-TV6-universal.apk` | Devices where the architecture is unknown; includes ARMv7, ARM64, x86, and x86_64 libraries |
+| `Twitch-box-v2.58.5.2-armeabi-v7a.apk` | 32-bit ARM TV boxes and older Android devices |
+| `Twitch-box-v2.58.5.2-arm64-v8a.apk` | 64-bit ARM Android TV devices |
+| `Twitch-box-v2.58.5.2-universal.apk` | ARM devices where the architecture is unknown; includes both ARMv7 and ARM64 libraries |
 
 ## Remote control guide
 
