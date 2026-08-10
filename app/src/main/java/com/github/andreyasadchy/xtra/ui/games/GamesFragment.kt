@@ -26,6 +26,10 @@ import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.FragmentGamesBinding
 import com.github.andreyasadchy.xtra.model.ui.Game
 import com.github.andreyasadchy.xtra.model.ui.Tag
+import com.github.andreyasadchy.xtra.repository.datasource.GamesDataSource.Companion.SORT_RECENT
+import com.github.andreyasadchy.xtra.repository.datasource.GamesDataSource.Companion.SORT_RECOMMENDED
+import com.github.andreyasadchy.xtra.repository.datasource.GamesDataSource.Companion.SORT_VIEWERS
+import com.github.andreyasadchy.xtra.repository.datasource.GamesDataSource.Companion.SORT_VIEWERS_ASC
 import com.github.andreyasadchy.xtra.ui.common.GamesAdapter
 import com.github.andreyasadchy.xtra.ui.common.PagedListFragment
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
@@ -42,7 +46,7 @@ import com.github.andreyasadchy.xtra.util.tokenPrefs
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
-class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter {
+class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnSort {
 
     private var _binding: FragmentGamesBinding? = null
     private val binding get() = _binding!!
@@ -157,17 +161,10 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
         with(binding) {
             sortBar.root.visibility = View.VISIBLE
             sortBar.root.setOnClickListener {
-                val tags = viewModel.tags.mapNotNull { tag ->
-                    if (tag.id != null && tag.name != null) {
-                        tag.id to tag.name
-                    } else null
-                }.toMap()
-                GamesSortDialog.newInstance(
-                    tagIds = tags.keys.toTypedArray(),
-                    tagNames = tags.values.toTypedArray(),
-                ).show(childFragmentManager, null)
+                GamesSortDialog.newInstance(viewModel.sort).show(childFragmentManager, null)
             }
-            sortBar.sortText.visibility = View.GONE
+            sortBar.sortText.visibility = View.VISIBLE
+            sortBar.sortText.setText(sortText(viewModel.sort))
             viewLifecycleOwner.lifecycleScope.launch {
                 repeatOnLifecycle(Lifecycle.State.STARTED) {
                     viewModel.filtersText.collectLatest {
@@ -200,22 +197,20 @@ class GamesFragment : PagedListFragment(), Scrollable, GamesSortDialog.OnFilter 
         }
     }
 
-    override fun onChange(tags: Array<Tag>) {
+    override fun onSortChanged(sort: String) {
         viewLifecycleOwner.lifecycleScope.launch {
             pagingAdapter.submitData(PagingData.empty())
-            viewModel.setFilter(tags)
-            viewModel.filtersText.value = if (viewModel.tags.isNotEmpty()) {
-                buildString {
-                    append(
-                        resources.getQuantityString(
-                            R.plurals.tags,
-                            viewModel.tags.size,
-                            viewModel.tags.mapNotNull { it.name }.joinToString()
-                        )
-                    )
-                }
-            } else null
+            viewModel.setFilter(viewModel.tags, sort)
+            binding.sortBar.sortText.setText(sortText(sort))
         }
+    }
+
+    private fun sortText(sort: String): Int = when (sort) {
+        SORT_VIEWERS -> R.string.viewers_high
+        SORT_VIEWERS_ASC -> R.string.viewers_low
+        SORT_RECENT -> R.string.recent
+        SORT_RECOMMENDED -> R.string.recommended
+        else -> R.string.recommended
     }
 
     override fun scrollToTop() {

@@ -24,9 +24,9 @@ Download the latest APKs from the [GitHub Releases page](https://github.com/w1ll
 
 | APK | Recommended for |
 | --- | --- |
-| `Twitch-box-v2.58.5.2-armeabi-v7a.apk` | 32-bit ARM TV boxes and older Android devices |
-| `Twitch-box-v2.58.5.2-arm64-v8a.apk` | 64-bit ARM Android TV devices |
-| `Twitch-box-v2.58.5.2-universal.apk` | ARM devices where the architecture is unknown; includes both ARMv7 and ARM64 libraries |
+| `Twitch-box-v2.58.5.3-armeabi-v7a.apk` | 32-bit ARM TV boxes and older Android devices |
+| `Twitch-box-v2.58.5.3-arm64-v8a.apk` | 64-bit ARM Android TV devices |
+| `Twitch-box-v2.58.5.3-universal.apk` | ARM devices where the architecture is unknown; includes both ARMv7 and ARM64 libraries |
 
 ## Remote control guide
 
@@ -35,6 +35,10 @@ Download the latest APKs from the [GitHub Releases page](https://github.com/w1ll
 - Use the D-pad to move focus and press **OK/Select** to open the focused item.
 - The bottom navigation order is **Browse**, **Popular**, **Following**, and **Saved**.
 - Newly loaded pages focus their first result automatically.
+- On a results page, press the remote's **Menu/Settings** key to open the Sort card. Its first available option receives focus automatically.
+- Browse categories can be sorted by **Recommended for you**, viewer count in either direction, or **Recently started**. Stream lists can be sorted by viewer count in either direction or **Recently started**.
+- Sorting choices apply immediately. The redundant **Apply**, **Add tag**, and **Save filters** actions are removed from Browse and Popular stream sorting. Following and channel-video sorting also applies immediately without an extra **Apply** action.
+- **Apply to all categories** stores a common default, while **Remember choices for this game** stores an override for only the current category.
 - **Back** returns one level at a time and restores focus to the item that opened that level. For example, a stream returns to its category, and the category returns to **Browse**.
 - Search and Settings are available from the top navigation row.
 
@@ -46,6 +50,7 @@ Download the latest APKs from the [GitHub Releases page](https://github.com/w1ll
 - Press and hold **Left** or **Right** for 600 ms to start rewinding or fast-forwarding. The player then jumps 10 seconds approximately every 600 ms. After the key has been held for more than 5 seconds, each jump accelerates to 60 seconds.
 - The **Player menu** contains additional actions such as viewers, download, share, and subtitles when those actions are available.
 - **Volume** and **Fullscreen** buttons are disabled by default in **Settings > Player button settings**, but they can be enabled there.
+- The **Playback speed** player button is enabled by default.
 - **Automatic mini-player playback** is disabled by default. Enable it in Settings if playback should continue in a small window after pressing **Back**.
 
 ## Local follows and Twitch sign-in

@@ -16,6 +16,7 @@ import com.github.andreyasadchy.xtra.ui.game.clips.GameClipsFragment
 import com.github.andreyasadchy.xtra.ui.game.videos.GameVideosFragment
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.isTelevision
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
@@ -80,6 +81,7 @@ class VideosSortDialog : BottomSheetDialogFragment(), SelectLanguagesDialog.OnSe
         behavior.state = BottomSheetBehavior.STATE_EXPANDED
         with(binding) {
             val args = requireArguments()
+            val applyOnSelection = parentFragment is ChannelVideosFragment || parentFragment is FollowedVideosFragment
             when (parentFragment) {
                 is ChannelClipsFragment -> {
                     sort.visibility = View.GONE
@@ -97,6 +99,7 @@ class VideosSortDialog : BottomSheetDialogFragment(), SelectLanguagesDialog.OnSe
                 is ChannelVideosFragment -> {
                     period.visibility = View.GONE
                     selectLanguages.visibility = View.GONE
+                    apply.visibility = View.GONE
                     saveSort.text = getString(R.string.save_sort_channel)
                     saveSortLayout.isVisible = parentFragment?.arguments?.getString(C.CHANNEL_ID).isNullOrBlank() == false
                 }
@@ -104,6 +107,7 @@ class VideosSortDialog : BottomSheetDialogFragment(), SelectLanguagesDialog.OnSe
                     period.visibility = View.GONE
                     selectLanguages.visibility = View.GONE
                     saveSortLayout.visibility = View.GONE
+                    apply.visibility = View.GONE
                 }
                 is GameVideosFragment -> {
                     if (TwitchApiHelper.getHelixHeaders(requireContext())[C.HEADER_TOKEN].isNullOrBlank()) {
@@ -158,6 +162,21 @@ class VideosSortDialog : BottomSheetDialogFragment(), SelectLanguagesDialog.OnSe
             }
             selectLanguages.setOnClickListener {
                 SelectLanguagesDialog.newInstance(selectedLanguages).show(childFragmentManager, "closeOnPip")
+            }
+            if (applyOnSelection || requireContext().isTelevision()) {
+                val options = listOf(time, views, today, week, month, all, typeArchive, typeHighlight, typeUpload, typeAll)
+                options.forEach { button ->
+                    button.setOnClickListener {
+                        applyFilters(originalPeriodId, originalSortId, originalTypeId, originalLanguages, saveSort = false, saveDefault = false)
+                        dismiss()
+                    }
+                }
+            }
+            if (requireContext().isTelevision()) {
+                val options = listOf(time, views, today, week, month, all, typeArchive, typeHighlight, typeUpload, typeAll)
+                view.post {
+                    options.firstOrNull { it.isShown }?.requestFocus()
+                }
             }
         }
     }

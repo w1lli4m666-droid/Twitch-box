@@ -643,7 +643,7 @@ class MainActivity : AppCompatActivity() {
                 putBoolean(C.PLAYER_DOWNLOAD, false)
                 putBoolean(C.PLAYER_SLEEP, false)
                 putBoolean(C.PLAYER_ASPECT, false)
-                putBoolean(C.PLAYER_SPEED_BUTTON, false)
+                putBoolean(C.PLAYER_SPEED_BUTTON, true)
                 if (!prefs.contains(C.TV_AUTO_MINI_PLAYER)) {
                     putBoolean(C.TV_AUTO_MINI_PLAYER, false)
                 }
@@ -653,6 +653,10 @@ class MainActivity : AppCompatActivity() {
                 putBoolean(C.PLAYER_VOLUME_BUTTON, false)
                 putBoolean(C.PLAYER_FULLSCREEN, false)
                 putBoolean(C.TV_PLAYER_BUTTON_DEFAULTS_V2_APPLIED, true)
+            }
+            if (!prefs.getBoolean(C.TV_PLAYER_BUTTON_DEFAULTS_V3_APPLIED, false)) {
+                putBoolean(C.PLAYER_SPEED_BUTTON, true)
+                putBoolean(C.TV_PLAYER_BUTTON_DEFAULTS_V3_APPLIED, true)
             }
         }
     }
@@ -665,8 +669,22 @@ class MainActivity : AppCompatActivity() {
                 else -> false
             }
             if (handled) return true
+            if (handleTvSortKey(event)) return true
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    private fun handleTvSortKey(event: KeyEvent): Boolean {
+        if (event.keyCode != KeyEvent.KEYCODE_MENU && event.keyCode != KeyEvent.KEYCODE_SETTINGS) {
+            return false
+        }
+        val sortBar = findViewById<View>(R.id.sortBar)?.takeIf { it.isShown && it.isClickable }
+        if (sortBar == null) return false
+        return when (event.action) {
+            KeyEvent.ACTION_DOWN -> true
+            KeyEvent.ACTION_UP -> sortBar.performClick()
+            else -> false
+        }
     }
 
     private fun setNavBarColor(isPortrait: Boolean) {

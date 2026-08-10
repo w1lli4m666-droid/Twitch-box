@@ -269,9 +269,10 @@
     <string name="follow_system_theme">跟随系统主题</string>
     <string name="image_quality">图片质量</string>
     <string name="lang_auto">系统默认</string>
-    <string name="save_default">储存为默认</string>
-    <string name="viewers_high">观众数（高至低）</string>
-    <string name="viewers_low">观众数（低至高）</string>
+    <string name="save_default">应用至所有分区</string>
+    <string name="viewers_high">观众人数(高到低)</string>
+    <string name="viewers_low">观众人数(低到高)</string>
+    <string name="recommended">为您推荐</string>
     <string name="points_earned">已收到 %d 忠诚点数</string>
     <string name="points_notify">当赚取忠诚点数时通知</string>
     <string name="points_collect">自动地收集忠诚点数</string>
@@ -512,7 +513,7 @@
     <string name="invalid_directory">Invalid directory</string>
     <string name="suggestions">Suggestions</string>
     <string name="languages">Languages</string>
-    <string name="recent">Recently started</string>
+    <string name="recent">最近开始</string>
     <string name="filters">Filters</string>
     <string name="sort_by">Sort by: %1$s</string>
     <string name="following_tabs">Following tabs</string>

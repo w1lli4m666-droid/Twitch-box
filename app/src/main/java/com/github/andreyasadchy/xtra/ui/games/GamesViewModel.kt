@@ -14,6 +14,7 @@ import com.github.andreyasadchy.xtra.model.ui.Tag
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.datasource.GamesDataSource
+import com.github.andreyasadchy.xtra.repository.datasource.GamesDataSource.Companion.SORT_RECOMMENDED
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
@@ -33,12 +34,16 @@ class GamesViewModel(
     val tags: Array<Tag>
         get() = filter.value?.tags ?: emptyArray()
 
+    val sort: String
+        get() = filter.value?.sort ?: SORT_RECOMMENDED
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val flow = filter.flatMapLatest {
         Pager(
             PagingConfig(pageSize = 30, prefetchDistance = 10, initialLoadSize = 30)
         ) {
             GamesDataSource(
+                sort = sort,
                 tags = tags.ifEmpty { null }?.mapNotNull { it.id },
                 gqlHeaders = TwitchApiHelper.getGQLHeaders(applicationContext),
                 graphQLRepository = graphQLRepository,
@@ -50,12 +55,13 @@ class GamesViewModel(
         }.flow
     }.cachedIn(viewModelScope)
 
-    fun setFilter(tags: Array<Tag>?) {
-        filter.value = Filter(tags)
+    fun setFilter(tags: Array<Tag>?, sort: String = this.sort) {
+        filter.value = Filter(tags, sort)
     }
 
     class Filter(
         val tags: Array<Tag>?,
+        val sort: String,
     )
 
     companion object {

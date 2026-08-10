@@ -518,6 +518,7 @@ input GameClipsInput {
 }
 
 input GameOptions {
+    sort: StreamSort
     tags: [String!]
 }
 

@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.RadioButton
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.DialogFollowedChannelsSortBinding
+import com.github.andreyasadchy.xtra.util.isTelevision
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
@@ -78,6 +79,18 @@ class FollowedChannelsSortDialog : BottomSheetDialogFragment() {
             apply.setOnClickListener {
                 applyFilters(originalSortId, originalOrderId, false)
                 dismiss()
+            }
+            val options = listOf(timeFollowed, alphabetically, lastBroadcast, newestFirst, oldestFirst)
+            options.forEach { button ->
+                button.setOnClickListener {
+                    applyFilters(originalSortId, originalOrderId, false)
+                    dismiss()
+                }
+            }
+            if (requireContext().isTelevision()) {
+                view.post {
+                    timeFollowed.requestFocus()
+                }
             }
         }
     }

@@ -59,6 +59,7 @@ object C {
     const val TV_NETWORK_DEFAULT_APPLIED = "tv_network_default_applied"
     const val TV_PLAYER_DEFAULTS_APPLIED = "tv_player_defaults_applied"
     const val TV_PLAYER_BUTTON_DEFAULTS_V2_APPLIED = "tv_player_button_defaults_v2_applied"
+    const val TV_PLAYER_BUTTON_DEFAULTS_V3_APPLIED = "tv_player_button_defaults_v3_applied"
     const val TV_AUTO_MINI_PLAYER = "tv_auto_mini_player"
     const val LANDSCAPE_CHAT_WIDTH = "landscape_chat_width"
     const val KEY_CHAT_OPENED = "key_chat_opened"

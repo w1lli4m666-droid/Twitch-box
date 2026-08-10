@@ -4,11 +4,13 @@ import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.github.andreyasadchy.xtra.model.ui.Game
 import com.github.andreyasadchy.xtra.model.ui.Tag
+import com.github.andreyasadchy.xtra.graphql.type.StreamSort
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.util.C
 
 class GamesDataSource(
+    private val sort: String,
     private val tags: List<String>?,
     private val gqlHeaders: Map<String, String>,
     private val graphQLRepository: GraphQLRepository,
@@ -57,7 +59,19 @@ class GamesDataSource(
     }
 
     private suspend fun gqlQueryLoad(params: LoadParams<Int>): LoadResult<Int, Game> {
-        val response = graphQLRepository.loadQueryTopGames(networkLibrary, gqlHeaders, tags, params.loadSize, offset)
+        val response = graphQLRepository.loadQueryTopGames(
+            networkLibrary,
+            gqlHeaders,
+            when (sort) {
+                SORT_VIEWERS -> StreamSort.VIEWER_COUNT
+                SORT_VIEWERS_ASC -> StreamSort.VIEWER_COUNT_ASC
+                SORT_RECENT -> StreamSort.RECENT
+                else -> StreamSort.RELEVANCE
+            },
+            tags,
+            params.loadSize,
+            offset,
+        )
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -93,7 +107,7 @@ class GamesDataSource(
     }
 
     private suspend fun gqlLoad(params: LoadParams<Int>): LoadResult<Int, Game> {
-        val response = graphQLRepository.loadTopGames(networkLibrary, gqlHeaders, tags, params.loadSize, offset)
+        val response = graphQLRepository.loadTopGames(networkLibrary, gqlHeaders, sort, tags, params.loadSize, offset)
         if (enableIntegrity) {
             response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
         }
@@ -156,5 +170,12 @@ class GamesDataSource(
             val anchorPage = state.closestPageToPosition(anchorPosition)
             anchorPage?.prevKey?.plus(1) ?: anchorPage?.nextKey?.minus(1)
         }
+    }
+
+    companion object {
+        const val SORT_RECOMMENDED = "RELEVANCE"
+        const val SORT_VIEWERS = "VIEWER_COUNT"
+        const val SORT_VIEWERS_ASC = "VIEWER_COUNT_ASC"
+        const val SORT_RECENT = "RECENT"
     }
 }

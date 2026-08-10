@@ -27,8 +27,8 @@ android {
         applicationId = "com.github.andreyasadchy.xtra"
         minSdk = 21
         targetSdk = 37
-        versionCode = 127
-        versionName = "2.58.5.2"
+        versionCode = 128
+        versionName = "2.58.5.3"
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a")
         }

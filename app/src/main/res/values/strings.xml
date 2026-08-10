@@ -287,9 +287,10 @@
     <string name="follow_system_theme">Change based on device theme</string>
     <string name="image_quality">Image quality</string>
     <string name="lang_auto">System default</string>
-    <string name="save_default">Save as default</string>
+    <string name="save_default">Apply to all categories</string>
     <string name="viewers_high">Viewers (descending)</string>
     <string name="viewers_low">Viewers (ascending)</string>
+    <string name="recommended">Recommended for you</string>
     <string name="points_earned">Received %d channel points</string>
     <string name="points_notify">Notify when earning channel points</string>
     <string name="points_collect">Collect channel points automatically</string>

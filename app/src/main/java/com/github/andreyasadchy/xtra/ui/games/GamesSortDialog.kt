@@ -5,28 +5,28 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.DialogGamesSortBinding
-import com.github.andreyasadchy.xtra.model.ui.Tag
-import com.github.andreyasadchy.xtra.ui.common.SearchTagsDialog
+import com.github.andreyasadchy.xtra.repository.datasource.GamesDataSource.Companion.SORT_RECENT
+import com.github.andreyasadchy.xtra.repository.datasource.GamesDataSource.Companion.SORT_RECOMMENDED
+import com.github.andreyasadchy.xtra.repository.datasource.GamesDataSource.Companion.SORT_VIEWERS
+import com.github.andreyasadchy.xtra.repository.datasource.GamesDataSource.Companion.SORT_VIEWERS_ASC
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.google.android.material.chip.Chip
 
-class GamesSortDialog : BottomSheetDialogFragment(), SearchTagsDialog.OnTagSelectedListener {
+class GamesSortDialog : BottomSheetDialogFragment() {
 
-    interface OnFilter {
-        fun onChange(tags: Array<Tag>)
+    interface OnSort {
+        fun onSortChanged(sort: String)
     }
 
     companion object {
-        private const val TAG_IDS = "tag_ids"
-        private const val TAG_NAMES = "tag_names"
+        private const val SORT = "sort"
 
-        fun newInstance(tagIds: Array<String>?, tagNames: Array<String>?): GamesSortDialog {
+        fun newInstance(sort: String): GamesSortDialog {
             return GamesSortDialog().apply {
                 arguments = Bundle().apply {
-                    putStringArray(TAG_IDS, tagIds)
-                    putStringArray(TAG_NAMES, tagNames)
+                    putString(SORT, sort)
                 }
             }
         }
@@ -34,13 +34,11 @@ class GamesSortDialog : BottomSheetDialogFragment(), SearchTagsDialog.OnTagSelec
 
     private var _binding: DialogGamesSortBinding? = null
     private val binding get() = _binding!!
-    private lateinit var listener: OnFilter
-
-    private var selectedTags = mutableListOf<Tag>()
+    private lateinit var listener: OnSort
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
-        listener = parentFragment as OnFilter
+        listener = parentFragment as OnSort
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -54,58 +52,29 @@ class GamesSortDialog : BottomSheetDialogFragment(), SearchTagsDialog.OnTagSelec
         behavior.skipCollapsed = true
         behavior.state = BottomSheetBehavior.STATE_EXPANDED
         with(binding) {
-            val args = requireArguments()
-            val originalTagIds = args.getStringArray(TAG_IDS) ?: emptyArray()
-            val originalTags = requireArguments().getStringArray(TAG_NAMES)?.let { names ->
-                originalTagIds.zip(names).map {
-                    Tag(
-                        id = it.first,
-                        name = it.second,
-                    )
+            sort.check(
+                when (requireArguments().getString(SORT)) {
+                    SORT_VIEWERS -> R.id.viewers_high
+                    SORT_VIEWERS_ASC -> R.id.viewers_low
+                    SORT_RECENT -> R.id.recent
+                    else -> R.id.recommended
                 }
-            } ?: emptyList()
-            selectedTags = originalTags.toMutableList()
-            originalTags.forEach { tag ->
-                tagGroup.addView(
-                    Chip(requireContext()).apply {
-                        text = tag.name
-                        isCloseIconVisible = true
-                        setOnCloseIconClickListener {
-                            selectedTags.find { it.id == tag.id }?.let { selectedTags.remove(it) }
-                            tagGroup.removeView(this)
-                        }
-                    }
-                )
-            }
-            selectTags.setOnClickListener {
-                SearchTagsDialog.Companion.newInstance(true).show(childFragmentManager, null)
-            }
-            apply.setOnClickListener {
-                val tags = selectedTags.sortedBy { it.id }
-                if (!tags.mapNotNull { it.id }.toTypedArray().contentEquals(originalTagIds)) {
-                    listener.onChange(
-                        tags.toTypedArray(),
-                    )
-                }
-                dismiss()
+            )
+            recommended.setOnClickListener { selectSort(SORT_RECOMMENDED) }
+            viewersHigh.setOnClickListener { selectSort(SORT_VIEWERS) }
+            viewersLow.setOnClickListener { selectSort(SORT_VIEWERS_ASC) }
+            recent.setOnClickListener { selectSort(SORT_RECENT) }
+            view.post {
+                recommended.requestFocus()
             }
         }
     }
 
-    override fun onTagSelected(tag: Tag) {
-        if (tag.id != null && selectedTags.find { it.id == tag.id } == null) {
-            selectedTags.add(tag)
-            binding.tagGroup.addView(
-                Chip(requireContext()).apply {
-                    text = tag.name
-                    isCloseIconVisible = true
-                    setOnCloseIconClickListener {
-                        selectedTags.find { it.id == tag.id }?.let { selectedTags.remove(it) }
-                        binding.tagGroup.removeView(this)
-                    }
-                }
-            )
+    private fun selectSort(sort: String) {
+        if (requireArguments().getString(SORT) != sort) {
+            listener.onSortChanged(sort)
         }
+        dismiss()
     }
 
     override fun onDestroyView() {

@@ -13,6 +13,7 @@ import com.github.andreyasadchy.xtra.model.ui.Tag
 import com.github.andreyasadchy.xtra.ui.game.streams.GameStreamsFragment
 import com.github.andreyasadchy.xtra.ui.top.TopStreamsFragment
 import com.github.andreyasadchy.xtra.util.C
+import com.github.andreyasadchy.xtra.util.isTelevision
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.chip.Chip
@@ -130,6 +131,17 @@ class StreamsSortDialog : BottomSheetDialogFragment(), SearchTagsDialog.OnTagSel
                 applyFilters(originalSortId, originalTags, originalLanguages, saveFilters = false, saveSort = false, saveDefault = false)
                 dismiss()
             }
+            listOf(viewersHigh, viewersLow, recent).forEach { button ->
+                button.setOnClickListener {
+                    applyFilters(originalSortId, originalTags, originalLanguages, saveFilters = false, saveSort = false, saveDefault = false)
+                    dismiss()
+                }
+            }
+            if (requireContext().isTelevision()) {
+                view.post {
+                    viewersHigh.requestFocus()
+                }
+            }
         }
     }
 
@@ -176,6 +188,7 @@ class StreamsSortDialog : BottomSheetDialogFragment(), SearchTagsDialog.OnTagSel
 
     override fun onChange(languages: Array<String>) {
         selectedLanguages = languages
+        binding.apply.performClick()
     }
 
     override fun onDestroyView() {
