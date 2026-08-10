@@ -45,7 +45,7 @@
         <item name="android:navigationBarColor">@color/darkScrim</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
     </style>
 
     <style name="BaseAmoledTheme" parent="Theme.Material3.Dark.NoActionBar">
@@ -187,11 +187,21 @@
 
     <style name="CompactCard" parent="Widget.Material3.CardView.Elevated">
         <item name="android:layout_margin">4dp</item>
+        <item name="strokeColor">@color/tv_card_stroke</item>
+        <item name="strokeWidth">3dp</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:stateListAnimator">@animator/tv_card_focus</item>
     </style>
 
     <style name="CompactCardAmoled" parent="Widget.Material3.CardView.Elevated">
         <item name="materialThemeOverlay">@style/CardOverlayAmoled</item>
         <item name="android:layout_margin">4dp</item>
+        <item name="strokeColor">@color/tv_card_stroke</item>
+        <item name="strokeWidth">3dp</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:stateListAnimator">@animator/tv_card_focus</item>
     </style>
 
     <style name="CompactRadioButton" parent="Widget.Material3.CompoundButton.RadioButton">
@@ -1121,11 +1131,21 @@
 
     <style name="Card" parent="Widget.Material3.CardView.Elevated">
         <item name="android:layout_margin">8dp</item>
+        <item name="strokeColor">@color/tv_card_stroke</item>
+        <item name="strokeWidth">3dp</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:stateListAnimator">@animator/tv_card_focus</item>
     </style>
 
     <style name="CardAmoled" parent="Widget.Material3.CardView.Elevated">
         <item name="materialThemeOverlay">@style/CardOverlayAmoled</item>
         <item name="android:layout_margin">8dp</item>
+        <item name="strokeColor">@color/tv_card_stroke</item>
+        <item name="strokeWidth">3dp</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:stateListAnimator">@animator/tv_card_focus</item>
     </style>
 
     <style name="CardOverlayAmoled">
@@ -1332,7 +1352,7 @@
         <item name="android:navigationBarColor">@color/darkScrim</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
     </style>
 
     <style name="BaseAppCompatAmoledTheme" parent="Theme.AppCompat.NoActionBar">
@@ -1458,7 +1478,11 @@
     <style name="MaterialCard" parent="Widget.MaterialComponents.CardView">
         <item name="materialThemeOverlay">@style/MaterialCardOverlay</item>
         <item name="cardCornerRadius">0dp</item>
-        <item name="strokeWidth">0dp</item>
+        <item name="strokeColor">@color/tv_card_stroke</item>
+        <item name="strokeWidth">3dp</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:stateListAnimator">@animator/tv_card_focus</item>
     </style>
 
     <style name="MaterialCardOverlay">

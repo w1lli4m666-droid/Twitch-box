@@ -1,4 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.download
+import com.github.andreyasadchy.xtra.util.isActiveNetworkCellularCompat
 
 import android.annotation.SuppressLint
 import android.app.Notification
@@ -8,7 +9,6 @@ import android.app.PendingIntent
 import android.content.ContentResolver
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.graphics.drawable.Icon
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Binder
@@ -153,8 +153,7 @@ class VideoDownloadService : LifecycleService() {
                             } else {
                                 val waitForWifi = if (prefs().getBoolean(C.DOWNLOAD_WIFI_ONLY, false)) {
                                     val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                                    val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                                    networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                                    connectivityManager.isActiveNetworkCellularCompat()
                                 } else false
                                 if (waitForWifi) {
                                     OfflineVideo.STATUS_WAITING_FOR_WIFI
@@ -1825,7 +1824,7 @@ class VideoDownloadService : LifecycleService() {
             if (paused) {
                 addAction(
                     Notification.Action.Builder(
-                        Icon.createWithResource(this@VideoDownloadService, R.drawable.baseline_play_arrow_black_48),
+                        R.drawable.baseline_play_arrow_black_48,
                         ContextCompat.getString(this@VideoDownloadService, R.string.resume),
                         PendingIntent.getService(
                             this@VideoDownloadService,
@@ -1841,7 +1840,7 @@ class VideoDownloadService : LifecycleService() {
             } else {
                 addAction(
                     Notification.Action.Builder(
-                        Icon.createWithResource(this@VideoDownloadService, R.drawable.baseline_pause_black_48),
+                        R.drawable.baseline_pause_black_48,
                         ContextCompat.getString(this@VideoDownloadService, R.string.pause),
                         PendingIntent.getService(
                             this@VideoDownloadService,
@@ -1857,7 +1856,7 @@ class VideoDownloadService : LifecycleService() {
             }
             addAction(
                 Notification.Action.Builder(
-                    Icon.createWithResource(this@VideoDownloadService, android.R.drawable.ic_delete),
+                    android.R.drawable.ic_delete,
                     ContextCompat.getString(this@VideoDownloadService, R.string.stop),
                     PendingIntent.getService(
                         this@VideoDownloadService,

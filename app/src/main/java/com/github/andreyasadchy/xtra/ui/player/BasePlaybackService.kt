@@ -1,4 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.player
+import com.github.andreyasadchy.xtra.util.isActiveNetworkCellularCompat
 
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -146,8 +147,7 @@ abstract class BasePlaybackService : LifecycleService() {
 
     protected fun setDefaultQuality() {
         val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-        val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-        val cellular = networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
+        val cellular = connectivityManager.isActiveNetworkCellularCompat()
         val defaultQuality = if (cellular) {
             prefs().getString(C.PLAYER_DEFAULT_CELLULAR_QUALITY, "saved")
         } else {

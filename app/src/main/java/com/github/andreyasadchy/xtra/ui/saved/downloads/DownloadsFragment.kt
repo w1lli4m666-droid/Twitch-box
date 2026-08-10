@@ -1,4 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.saved.downloads
+import com.github.andreyasadchy.xtra.util.isActiveNetworkCellularCompat
 
 import android.app.Activity
 import android.content.ComponentName
@@ -132,8 +133,7 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
             resumeDownload = {
                 val waitForWifi = if (requireContext().prefs().getBoolean(C.DOWNLOAD_WIFI_ONLY, false)) {
                     val connectivityManager = requireContext().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-                    val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                    networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                    connectivityManager.isActiveNetworkCellularCompat()
                 } else false
                 if (waitForWifi) {
                     viewModel.updateDownloadStatus(it, true)

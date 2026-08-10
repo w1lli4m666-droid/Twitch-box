@@ -21,6 +21,7 @@ import android.text.format.DateUtils
 import android.util.TypedValue
 import android.view.GestureDetector
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.RoundedCorner
@@ -49,6 +50,7 @@ import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.fragment.app.viewModels
+import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -75,6 +77,7 @@ import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.isKeyboardShown
+import com.github.andreyasadchy.xtra.util.isTelevision
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -123,12 +126,18 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
     private val controllerHideAction = Runnable { if (view != null) hideController() }
     private var controllerIsAnimating = false
     private var controllerAnimation: ViewPropertyAnimator? = null
+    private val tvRemoteSeekRepeater = TvRemoteSeekRepeater()
     private var backgroundColor: Int? = null
     private var backgroundVisible = false
 
     private val backPressedCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
-            minimize()
+            if (requireContext().isTelevision() && !requireContext().prefs().getBoolean(C.TV_AUTO_MINI_PLAYER, false)) {
+                close()
+                (activity as? MainActivity)?.closePlayer()
+            } else {
+                minimize()
+            }
         }
     }
 
@@ -153,6 +162,110 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
     open fun startAudioOnly() {}
     open fun close(deleteStates: Boolean = true) {}
     open fun retry(item: String) {}
+
+    fun handleTvRemoteKey(event: KeyEvent): Boolean {
+        if (!isAdded || view == null || !isMaximized) return false
+        if (childFragmentManager.fragments.any { (it as? DialogFragment)?.dialog?.isShowing == true }) {
+            return false
+        }
+        val televisionSeekKey = event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT || event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
+        if (televisionSeekKey && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+            tvRemoteSeekRepeater.begin(event)
+        } else if (televisionSeekKey && event.action == KeyEvent.ACTION_UP) {
+            tvRemoteSeekRepeater.end(event)
+        }
+        val handledKey = when (event.keyCode) {
+            KeyEvent.KEYCODE_MEDIA_PLAY,
+            KeyEvent.KEYCODE_MEDIA_PAUSE,
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            KeyEvent.KEYCODE_HEADSETHOOK,
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER,
+            KeyEvent.KEYCODE_NUMPAD_ENTER,
+            KeyEvent.KEYCODE_DPAD_LEFT,
+            KeyEvent.KEYCODE_DPAD_RIGHT,
+            KeyEvent.KEYCODE_DPAD_UP,
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_MENU,
+            KeyEvent.KEYCODE_SETTINGS -> true
+            else -> false
+        }
+        if (!handledKey) return false
+        if (binding.playerControls.root.isVisible) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                restartControllerHideTimer()
+            }
+            if (event.keyCode in setOf(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER)) {
+                return false
+            }
+            if (event.keyCode in setOf(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN)) {
+                if (binding.playerControls.shouldDelegateTelevisionSeek(event.keyCode)) return false
+                if (televisionSeekKey) {
+                    tvRemoteSeekRepeater.getSeekDelta(event)?.let { delta ->
+                        performTelevisionSeek(delta)
+                        return true
+                    }
+                }
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                    binding.playerControls.moveTelevisionFocus(event.keyCode)
+                }
+                return true
+            }
+        }
+        if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return true
+
+        when (event.keyCode) {
+            KeyEvent.KEYCODE_MEDIA_PLAY,
+            KeyEvent.KEYCODE_MEDIA_PAUSE,
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            KeyEvent.KEYCODE_HEADSETHOOK -> playPause()
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                rewind()
+                showController(force = true)
+                binding.playerControls.requestTelevisionFocus()
+            }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                fastForward()
+                showController(force = true)
+                binding.playerControls.requestTelevisionFocus()
+            }
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER,
+            KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                showController(force = true)
+                binding.playerControls.requestTelevisionFocus()
+            }
+            KeyEvent.KEYCODE_DPAD_UP,
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                showController(force = true)
+                binding.playerControls.requestTelevisionFocus()
+            }
+            KeyEvent.KEYCODE_MENU,
+            KeyEvent.KEYCODE_SETTINGS -> {
+                showController(force = true)
+                binding.playerControls.requestTelevisionFocus(binding.playerControls.menu)
+            }
+        }
+        return true
+    }
+
+    private fun controllerHideDelayMillis(): Long = if (requireContext().isTelevision()) 6000L else 3000L
+
+    private fun restartControllerHideTimer() {
+        binding.playerControls.root.removeCallbacks(controllerHideAction)
+        if (controllerAutoHide && controllerHideOnTouch && !binding.playerControls.progressBar.isPressed) {
+            binding.playerControls.root.postDelayed(controllerHideAction, controllerHideDelayMillis())
+        }
+    }
+
+    private fun performTelevisionSeek(delta: Long) {
+        val position = getCurrentPosition() ?: return
+        seek((position + delta).coerceAtLeast(0L))
+        updateProgress()
+        showController(force = true)
+        binding.playerControls.requestTelevisionFocus()
+        restartControllerHideTimer()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         if (arguments?.getBoolean(KEY_OFFLINE) == true) {
@@ -614,7 +727,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                                 seek(position)
                             } else {
                                 if (controllerAutoHide && controllerHideOnTouch) {
-                                    binding.playerControls.root.postDelayed(controllerHideAction, 3000)
+                                    binding.playerControls.root.postDelayed(controllerHideAction, controllerHideDelayMillis())
                                 }
                             }
                         }
@@ -624,10 +737,13 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                 duration.text = DateUtils.formatElapsedTime(0)
                 subtitleView.setUserDefaultStyle()
                 subtitleView.setUserDefaultTextSize()
+                configureTelevisionControls()
             }
         }
     }
 
+    // Concrete players call this from onStart after their playback service is available.
+    @SuppressLint("RepeatOnLifecycleWrongUsage")
     fun start() {
         with(binding) {
             viewLifecycleOwner.lifecycleScope.launch {
@@ -737,7 +853,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                     minimize.visibility = View.VISIBLE
                     minimize.setOnClickListener { minimize() }
                 }
-                if (requireContext().prefs().getBoolean(C.PLAYER_VOLUME_BUTTON, true)) {
+                if (requireContext().prefs().getBoolean(C.PLAYER_VOLUME_BUTTON, false)) {
                     volume.visibility = View.VISIBLE
                     volume.setOnClickListener {
                         showController(force = true)
@@ -1152,7 +1268,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                 playerLayout.isPortrait = true
                 chatLayout.isPortrait = true
                 with(playerControls) {
-                    if (requireContext().prefs().getBoolean(C.PLAYER_FULLSCREEN, true)) {
+                    if (requireContext().prefs().getBoolean(C.PLAYER_FULLSCREEN, false)) {
                         fullscreen.visibility = View.VISIBLE
                         fullscreen.setImageResource(R.drawable.baseline_fullscreen_black_24)
                         fullscreen.setOnClickListener {
@@ -1227,7 +1343,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                 playerLayout.isPortrait = false
                 chatLayout.isPortrait = false
                 with(playerControls) {
-                    if (requireContext().prefs().getBoolean(C.PLAYER_FULLSCREEN, true)) {
+                    if (requireContext().prefs().getBoolean(C.PLAYER_FULLSCREEN, false)) {
                         fullscreen.visibility = View.VISIBLE
                         fullscreen.setImageResource(R.drawable.baseline_fullscreen_exit_black_24)
                         fullscreen.setOnClickListener {
@@ -1260,6 +1376,9 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                         }
                     }
                 }
+            }
+            if (!isMaximized && usesLegacySurfaceMiniPlayer()) {
+                slidingLayout.doOnPreDraw { applyLegacyMiniPlayerBounds() }
             }
         }
     }
@@ -1670,7 +1789,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
         with(binding) {
             if (canEnterPictureInPicture()) {
                 if (!controllerHideOnTouch && !controllerIsAnimating && controllerAutoHide && !binding.playerControls.progressBar.isPressed) {
-                    playerControls.root.postDelayed(controllerHideAction, 3000)
+                    playerControls.root.postDelayed(controllerHideAction, controllerHideDelayMillis())
                 }
                 controllerHideOnTouch = true
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
@@ -1714,7 +1833,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                                     controllerIsAnimating = false
                                     setListener(null)
                                     if (view != null && controllerAutoHide && controllerHideOnTouch && !binding.playerControls.progressBar.isPressed) {
-                                        binding.playerControls.root.postDelayed(controllerHideAction, 3000)
+                                        binding.playerControls.root.postDelayed(controllerHideAction, controllerHideDelayMillis())
                                     }
                                 }
                             }
@@ -1725,7 +1844,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
             } else {
                 binding.playerControls.root.removeCallbacks(controllerHideAction)
                 if (controllerAutoHide && controllerHideOnTouch && !binding.playerControls.progressBar.isPressed) {
-                    binding.playerControls.root.postDelayed(controllerHideAction, 3000)
+                    binding.playerControls.root.postDelayed(controllerHideAction, controllerHideDelayMillis())
                 }
             }
         } else {
@@ -1735,7 +1854,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                 binding.playerControls.root.alpha = 1f
                 binding.playerControls.root.visibility = View.VISIBLE
                 if (controllerAutoHide && controllerHideOnTouch && !binding.playerControls.progressBar.isPressed) {
-                    binding.playerControls.root.postDelayed(controllerHideAction, 3000)
+                    binding.playerControls.root.postDelayed(controllerHideAction, controllerHideDelayMillis())
                 }
             }
         }
@@ -1837,6 +1956,56 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
         } else {
             0.3f to 0.325f
         }
+    }
+
+    // Before Android 7, SurfaceView does not reliably follow a scaled parent transform.
+    // Use real layout bounds so the mini-player shows the complete frame instead of a crop.
+    private fun usesLegacySurfaceMiniPlayer() = Build.VERSION.SDK_INT < Build.VERSION_CODES.N
+
+    private fun applyLegacyMiniPlayerBounds() {
+        val windowInsets = ViewCompat.getRootWindowInsets(requireView())
+        val insets = windowInsets?.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+        val keyboardInsets = windowInsets?.getInsets(WindowInsetsCompat.Type.ime())?.bottom?.let {
+            if (it > 0) it - (insets?.bottom ?: 0) else it
+        } ?: 0
+        val navBarHeight = requireView().rootView.findViewById<LinearLayout>(R.id.navBarContainer)
+            ?.height?.takeIf { it > 0 }?.let { it - keyboardInsets } ?: (insets?.bottom ?: 0)
+        val (scaleX, scaleY) = getScaleValues()
+        val availableWidth = (binding.root.width - (insets?.left ?: 0) - (insets?.right ?: 0))
+            .takeIf { it > 0 } ?: binding.root.resources.displayMetrics.widthPixels
+        val miniWidth = (availableWidth * scaleX).toInt().coerceAtLeast(1)
+        val miniHeight = (miniWidth / (16f / 9f)).toInt().coerceAtLeast(1)
+        val horizontalMargin = (TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20f, resources.displayMetrics) * scaleX).toInt()
+        val verticalMargin = (TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 30f, resources.displayMetrics) * scaleY).toInt()
+
+        binding.slidingLayout.animate().cancel()
+        binding.slidingLayout.translationX = 0f
+        binding.slidingLayout.translationY = 0f
+        binding.slidingLayout.scaleX = 1f
+        binding.slidingLayout.scaleY = 1f
+        binding.playerBackground.gravity = Gravity.END or Gravity.BOTTOM
+        binding.slidingLayout.updateLayoutParams<LinearLayout.LayoutParams> {
+            width = miniWidth
+            height = miniHeight
+            gravity = Gravity.END or Gravity.BOTTOM
+            marginEnd = (insets?.right ?: 0) + horizontalMargin
+            bottomMargin = navBarHeight + verticalMargin
+        }
+    }
+
+    private fun restoreLegacyMiniPlayerBounds() {
+        binding.playerBackground.gravity = Gravity.NO_GRAVITY
+        binding.slidingLayout.updateLayoutParams<LinearLayout.LayoutParams> {
+            width = ViewGroup.LayoutParams.MATCH_PARENT
+            height = ViewGroup.LayoutParams.MATCH_PARENT
+            gravity = Gravity.NO_GRAVITY
+            marginEnd = 0
+            bottomMargin = 0
+        }
+        binding.slidingLayout.translationX = 0f
+        binding.slidingLayout.translationY = 0f
+        binding.slidingLayout.scaleX = 1f
+        binding.slidingLayout.scaleY = 1f
     }
 
     fun getIsPortrait() = isPortrait
@@ -2003,6 +2172,16 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
             useController = false
             hideController(true)
             fun animate() {
+                if (usesLegacySurfaceMiniPlayer()) {
+                    isAnimating = true
+                    disableBackground()
+                    applyLegacyMiniPlayerBounds()
+                    slidingLayout.post {
+                        isAnimating = false
+                        activePointerId = -1
+                    }
+                    return
+                }
                 val (minimizedScaleX, minimizedScaleY) = getScaleValues()
                 val windowInsets = ViewCompat.getRootWindowInsets(requireView())
                 val insets = windowInsets?.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
@@ -2065,7 +2244,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
     fun maximize() {
         with(binding) {
             isMaximized = true
-            requireActivity().onBackPressedDispatcher.addCallback(this@PlayerFragment, backPressedCallback)
+            requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, backPressedCallback)
             if (playbackService?.type == BasePlaybackService.STREAM && chatFragment?.emoteMenuIsVisible() == true) {
                 chatFragment?.toggleBackPressedCallback(true)
             }
@@ -2081,6 +2260,13 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                 if (isChatOpen) {
                     showChatLayout()
                 }
+            }
+            if (usesLegacySurfaceMiniPlayer()) {
+                restoreLegacyMiniPlayerBounds()
+                isAnimating = false
+                enableBackground()
+                activePointerId = -1
+                return@with
             }
             slidingLayout.animate().apply {
                 translationX(0f)

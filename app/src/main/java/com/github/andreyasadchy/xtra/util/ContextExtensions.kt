@@ -1,9 +1,13 @@
 package com.github.andreyasadchy.xtra.util
 
 import android.app.Activity
+import android.app.UiModeManager
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatDelegate
@@ -20,6 +24,34 @@ import java.util.Locale
 fun Context.prefs(): SharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
 
 fun Context.tokenPrefs(): SharedPreferences = getSharedPreferences("prefs2", Context.MODE_PRIVATE)
+
+/** True for Android TV devices, including older API 21 televisions without Leanback services. */
+fun Context.isTelevision(): Boolean {
+    val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
+    return packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
+            uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+}
+
+@Suppress("DEPRECATION")
+fun ConnectivityManager.isNetworkAvailableCompat(): Boolean {
+    val systemReportsConnected = activeNetworkInfo?.isConnected == true
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return systemReportsConnected
+
+    // VALIDATED is deliberately not required: Android TV firmware often fails its captive-portal
+    // probe when a system proxy or VPN is enabled even though app traffic works normally.
+    val hasInternetTransport = activeNetwork?.let(::getNetworkCapabilities)
+        ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    return hasInternetTransport || systemReportsConnected
+}
+
+@Suppress("DEPRECATION")
+fun ConnectivityManager.isActiveNetworkCellularCompat(): Boolean {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        getNetworkCapabilities(activeNetwork)?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
+    } else {
+        activeNetworkInfo?.type == ConnectivityManager.TYPE_MOBILE
+    }
+}
 
 fun Activity.applyTheme() {
     // On Android 15, wrong language is used when multiple languages are set in device settings

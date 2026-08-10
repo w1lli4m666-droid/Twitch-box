@@ -1,5 +1,8 @@
 package com.github.andreyasadchy.xtra.ui.player
 
+import com.github.andreyasadchy.xtra.util.isNetworkAvailableCompat
+import com.github.andreyasadchy.xtra.util.isActiveNetworkCellularCompat
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.ComponentName
@@ -351,10 +354,7 @@ class Media3Fragment : Media3PlayerFragment() {
                                     if (result.get().resultCode == SessionResult.RESULT_SUCCESS) {
                                         val responseCode = result.get().extras.getInt(PlaybackService.RESULT)
                                         val connectivityManager = requireContext().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-                                        val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                                        val isNetworkAvailable = networkCapabilities != null
-                                                && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                                                && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                                        val isNetworkAvailable = connectivityManager.isNetworkAvailableCompat()
                                         if (isNetworkAvailable) {
                                             when {
                                                 responseCode == 404 -> {
@@ -396,10 +396,7 @@ class Media3Fragment : Media3PlayerFragment() {
                                     if (result.get().resultCode == SessionResult.RESULT_SUCCESS) {
                                         val responseCode = result.get().extras.getInt(PlaybackService.RESULT)
                                         val connectivityManager = requireContext().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-                                        val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                                        val isNetworkAvailable = networkCapabilities != null
-                                                && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                                                && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                                        val isNetworkAvailable = connectivityManager.isNetworkAvailableCompat()
                                         if (isNetworkAvailable) {
                                             when {
                                                 viewModel.shouldRetry && responseCode != 0 -> {
@@ -870,8 +867,7 @@ class Media3Fragment : Media3PlayerFragment() {
                         }
                     }
                     val connectivityManager = requireContext().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-                    val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                    val cellular = networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
+                    val cellular = connectivityManager.isActiveNetworkCellularCompat()
                     if ((!cellular && requireContext().prefs().getString(C.PLAYER_DEFAULT_QUALITY, "saved") == "saved") || (cellular && requireContext().prefs().getString(C.PLAYER_DEFAULT_CELLULAR_QUALITY, "saved") == "saved")) {
                         requireContext().prefs().edit { putString(C.PLAYER_QUALITY, quality.name) }
                     }

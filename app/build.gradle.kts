@@ -25,10 +25,19 @@ android {
 
     defaultConfig {
         applicationId = "com.github.andreyasadchy.xtra"
-        minSdk = 23
+        minSdk = 21
         targetSdk = 37
-        versionCode = 121
-        versionName = "2.58.5"
+        versionCode = 126
+        versionName = "2.58.5-TV6"
+    }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a")
+            isUniversalApk = true
+        }
     }
 
     buildTypes {

@@ -52,7 +52,7 @@ class XtraModule(application: Application) {
     }
 
     val cronetEngine = lazy {
-        if (CronetProvider.getAllProviders(application).any { it.isEnabled }) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && CronetProvider.getAllProviders(application).any { it.isEnabled }) {
             CronetEngine.Builder(application).apply {
                 val userAgent = "Cronet/" + defaultUserAgent.substringAfter("Cronet/", "").substringBefore(')')
                 setUserAgent(userAgent)

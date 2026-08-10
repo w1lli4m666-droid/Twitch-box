@@ -112,7 +112,7 @@
         app:singleLineTitle="false" />
 
     <SwitchPreferenceCompat
-        android:defaultValue="true"
+        android:defaultValue="false"
         android:key="player_volumebutton"
         android:title="@string/volume"
         android:icon="@drawable/baseline_volume_up_black_24"
@@ -154,7 +154,7 @@
         app:singleLineTitle="false" />
 
     <SwitchPreferenceCompat
-        android:defaultValue="true"
+        android:defaultValue="false"
         android:key="player_fullscreen"
         android:title="@string/fullscreen"
         android:icon="@drawable/baseline_fullscreen_black_24"

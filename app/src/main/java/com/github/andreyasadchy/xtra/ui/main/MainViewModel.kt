@@ -1,4 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.main
+import com.github.andreyasadchy.xtra.util.isActiveNetworkCellularCompat
 
 import android.annotation.SuppressLint
 import android.app.Activity
@@ -683,8 +684,7 @@ class MainViewModel(
                 }
                 val waitForWifi = if (wifiOnly) {
                     val connectivityManager = applicationContext.getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                    val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                    networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                    connectivityManager.isActiveNetworkCellularCompat()
                 } else false
                 val videoId = offlineVideosRepository.save(
                     OfflineVideo(
@@ -858,8 +858,7 @@ class MainViewModel(
             }
             val waitForWifi = if (wifiOnly) {
                 val connectivityManager = applicationContext.getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                connectivityManager.isActiveNetworkCellularCompat()
             } else false
             val videoId = offlineVideosRepository.save(
                 OfflineVideo(
@@ -1037,8 +1036,7 @@ class MainViewModel(
             }
             val waitForWifi = if (wifiOnly) {
                 val connectivityManager = applicationContext.getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                connectivityManager.isActiveNetworkCellularCompat()
             } else false
             val videoId = offlineVideosRepository.save(
                 OfflineVideo(

@@ -1,4 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.download
+import com.github.andreyasadchy.xtra.util.isActiveNetworkCellularCompat
 
 import android.annotation.SuppressLint
 import android.app.Notification
@@ -8,7 +9,6 @@ import android.app.PendingIntent
 import android.content.ContentResolver
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.graphics.drawable.Icon
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.http.HttpEngine
@@ -162,8 +162,7 @@ class StreamDownloadService : LifecycleService() {
                         } else {
                             val waitForWifi = if (prefs().getBoolean(C.DOWNLOAD_WIFI_ONLY, false)) {
                                 val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                                val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                                networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                                connectivityManager.isActiveNetworkCellularCompat()
                             } else false
                             if (waitForWifi) {
                                 OfflineVideo.STATUS_WAITING_FOR_WIFI
@@ -316,8 +315,7 @@ class StreamDownloadService : LifecycleService() {
                     }
                     val waitForWifi = if (prefs().getBoolean(C.DOWNLOAD_WIFI_ONLY, false)) {
                         val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                        val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                        networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                        connectivityManager.isActiveNetworkCellularCompat()
                     } else false
                     if (waitForWifi) {
                         throw Exception()
@@ -2061,7 +2059,7 @@ class StreamDownloadService : LifecycleService() {
             )
             addAction(
                 Notification.Action.Builder(
-                    Icon.createWithResource(this@StreamDownloadService, android.R.drawable.ic_delete),
+                    android.R.drawable.ic_delete,
                     ContextCompat.getString(this@StreamDownloadService, R.string.stop),
                     PendingIntent.getService(
                         this@StreamDownloadService,

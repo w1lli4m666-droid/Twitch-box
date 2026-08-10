@@ -2,6 +2,13 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <SwitchPreferenceCompat
+        android:defaultValue="false"
+        android:key="tv_auto_mini_player"
+        android:title="@string/tv_player_back_action"
+        app:iconSpaceReserved="false"
+        app:singleLineTitle="false" />
+
+    <SwitchPreferenceCompat
         android:defaultValue="true"
         android:key="player_disable_background_video"
         android:title="@string/disable_background_video"

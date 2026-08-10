@@ -37,6 +37,7 @@ import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.applyTheme
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
+import com.github.andreyasadchy.xtra.util.isTelevision
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import com.google.android.material.slider.Slider
@@ -313,7 +314,9 @@ class LoginActivity : AppCompatActivity() {
                     }
                 }
             }
-            if (apiSetting == 1) {
+            if (isTelevision()) {
+                setupExternalCodeLogin(networkLibrary, helixClientId, helixAuthUrl)
+            } else if (apiSetting == 1) {
                 readHeaders = true
                 webView.loadUrl("https://www.twitch.tv/login")
             } else {
@@ -552,6 +555,7 @@ class LoginActivity : AppCompatActivity() {
         with(binding) {
             webView.visibility = View.INVISIBLE
             havingTrouble.visibility = View.INVISIBLE
+            textZoom.visibility = View.GONE
             val gqlClientId = prefs().getString(C.GQL_CLIENT_ID2, "kd1unb4b3q4t58fwlpcbzcbnm76a8fp")
             var deviceCode: String? = null
             var userCode: String? = null
@@ -560,9 +564,9 @@ class LoginActivity : AppCompatActivity() {
                     val response = xtraModule.authRepository.getDeviceCode(networkLibrary, "client_id=${gqlClientId}&scopes=channel_read+chat%3Aread+user_blocks_edit+user_blocks_read+user_follows_edit+user_read")
                     deviceCode = response.deviceCode
                     userCode = response.userCode
-                    codeText.text = userCode
+                    codeText.text = getString(R.string.tv_device_login_instructions, userCode)
                 } catch (e: Exception) {
-
+                    codeText.text = getString(R.string.connection_error)
                 }
             }
             codeText.visibility = View.VISIBLE
@@ -586,6 +590,7 @@ class LoginActivity : AppCompatActivity() {
                 }
             }
             next.visibility = View.VISIBLE
+            next.post { next.requestFocus() }
             next.setOnClickListener {
                 if (deviceCode != null) {
                     lifecycleScope.launch {

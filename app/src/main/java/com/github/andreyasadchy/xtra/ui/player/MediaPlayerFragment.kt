@@ -6,7 +6,6 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Color
 import android.media.MediaPlayer
-import android.media.PlaybackParams
 import android.os.Build
 import android.os.IBinder
 import android.text.format.DateUtils
@@ -339,9 +338,7 @@ class MediaPlayerFragment : PlayerFragment() {
     }
 
     override fun setPlaybackSpeed(speed: Float) {
-        val params = PlaybackParams()
-        params.speed = speed
-        playbackService?.player?.playbackParams = params
+        playbackService?.player?.setPlaybackSpeedCompat(speed)
         chatFragment?.updateSpeed(speed)
     }
 
@@ -358,7 +355,7 @@ class MediaPlayerFragment : PlayerFragment() {
                 root.removeCallbacks(updateProgressAction)
                 playbackService?.player?.let { player ->
                     if (player.isPlaying) {
-                        val speed = player.playbackParams.speed
+                        val speed = player.getPlaybackSpeedCompat()
                         val delay = if (speed > 0f) {
                             (progressBar.preferredUpdateDelay / speed).toLong().coerceIn(200L..1000L)
                         } else {

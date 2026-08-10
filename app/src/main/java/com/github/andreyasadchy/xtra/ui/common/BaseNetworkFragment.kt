@@ -1,4 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.common
+import com.github.andreyasadchy.xtra.util.isNetworkAvailableCompat
 
 import android.content.Context
 import android.net.ConnectivityManager
@@ -41,10 +42,7 @@ abstract class BaseNetworkFragment : Fragment() {
             lastIsOnlineState = savedInstanceState?.getBoolean(LAST_KEY).let {
                 if (it == null) {
                     val connectivityManager = requireContext().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-                    val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                    networkCapabilities != null
-                            && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                            && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                    connectivityManager.isNetworkAvailableCompat()
                 } else {
                     it
                 }

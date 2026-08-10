@@ -68,6 +68,7 @@ import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.applyTheme
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
+import com.github.andreyasadchy.xtra.util.isTelevision
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import com.google.android.material.appbar.AppBarLayout
@@ -1004,6 +1005,7 @@ class SettingsActivity : AppCompatActivity() {
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.player_preferences, rootKey)
+            findPreference<SwitchPreferenceCompat>(C.TV_AUTO_MINI_PLAYER)?.isVisible = requireContext().isTelevision()
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !requireActivity().packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                 findPreference<SwitchPreferenceCompat>(C.PLAYER_BACKGROUND_AUDIO_PIP_CLOSED)?.isVisible = false
                 findPreference<SwitchPreferenceCompat>(C.PLAYER_BACKGROUND_AUDIO_PIP_LOCKED)?.isVisible = false

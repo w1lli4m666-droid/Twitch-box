@@ -12,6 +12,7 @@ import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.PlayerSettingsBinding
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
+import com.github.andreyasadchy.xtra.util.isTelevision
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -243,6 +244,45 @@ class PlayerSettingsDialog : BottomSheetDialogFragment() {
                     dismiss()
                 }
             }
+            configureTelevisionMenuFocus()
+        }
+    }
+
+    private fun configureTelevisionMenuFocus() {
+        if (!requireContext().isTelevision()) return
+        binding.root.isFocusable = false
+        binding.root.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+        val menuItems = with(binding) {
+            listOf(
+                menuQuality,
+                menuSpeed,
+                menuViewerList,
+                menuVodGames,
+                menuDownload,
+                menuBookmark,
+                menuShare,
+                menuFindVod,
+                menuTimer,
+                menuRatio,
+                menuVolume,
+                menuSubtitles,
+                menuRestart,
+                menuChatBar,
+                menuChatToggle,
+                menuTranslateAll,
+                menuReloadEmotes,
+                menuChatDisconnect,
+                menuMediaPlaylistTags,
+                menuMultivariantPlaylistTags,
+            )
+        }
+        menuItems.forEach { item ->
+            item.isFocusable = true
+            item.isFocusableInTouchMode = false
+            item.setBackgroundResource(R.drawable.tv_player_control_background)
+        }
+        binding.root.post {
+            menuItems.firstOrNull { it.isShown && it.isEnabled && it.hasOnClickListeners() }?.requestFocus()
         }
     }
 

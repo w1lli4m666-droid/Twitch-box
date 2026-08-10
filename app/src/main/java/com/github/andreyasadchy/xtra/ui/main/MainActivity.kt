@@ -1,5 +1,8 @@
 package com.github.andreyasadchy.xtra.ui.main
 
+import com.github.andreyasadchy.xtra.util.isNetworkAvailableCompat
+import com.github.andreyasadchy.xtra.util.isActiveNetworkCellularCompat
+
 import android.app.ActivityOptions
 import android.app.PictureInPictureParams
 import android.app.admin.DevicePolicyManager
@@ -24,9 +27,11 @@ import android.os.PowerManager
 import android.os.ext.SdkExtensions
 import android.text.format.Formatter
 import android.view.Menu
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -94,6 +99,7 @@ import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.applyTheme
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
+import com.github.andreyasadchy.xtra.util.isTelevision
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
 import com.google.android.material.color.MaterialColors
@@ -138,6 +144,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         prefs = prefs()
         migrateSettings()
+        applyTelevisionDefaults()
         if (tokenPrefs().getLong(C.UPDATE_LAST_CHECKED, 0) <= 0L) {
             tokenPrefs().edit {
                 putLong(C.UPDATE_LAST_CHECKED, System.currentTimeMillis())
@@ -189,12 +196,10 @@ class MainActivity : AppCompatActivity() {
 
         var initialized = savedInstanceState != null
         initNavigation()
+        installTelevisionNavigationBackHandler()
         val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         if (!initialized) {
-            val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-            val isNetworkAvailable = networkCapabilities != null
-                    && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                    && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            val isNetworkAvailable = connectivityManager.isNetworkAvailableCompat()
             if (!isNetworkAvailable) {
                 initialized = true
                 Toast.makeText(this, R.string.no_connection, Toast.LENGTH_SHORT).show()
@@ -205,10 +210,7 @@ class MainActivity : AppCompatActivity() {
                 viewModel.checkNetworkStatus.collectLatest {
                     if (it) {
                         val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                        val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                        val isNetworkAvailable = networkCapabilities != null
-                                && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                                && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                        val isNetworkAvailable = connectivityManager.isNetworkAvailableCompat()
                         if (viewModel.isNetworkAvailable.value != isNetworkAvailable) {
                             viewModel.isNetworkAvailable.value = isNetworkAvailable
                             if (initialized) {
@@ -251,8 +253,7 @@ class MainActivity : AppCompatActivity() {
                 viewModel.checkCellularStatus.collectLatest {
                     if (it) {
                         val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                        val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                        val cellular = networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                        val cellular = connectivityManager.isActiveNetworkCellularCompat()
                         if (!cellular) {
                             if (prefs.getBoolean(C.DOWNLOAD_WIFI_ONLY, false)) {
                                 val downloads = viewModel.getWaitingDownloads()
@@ -610,6 +611,62 @@ class MainActivity : AppCompatActivity() {
                     .build()
             )
         }
+    }
+
+    /** TV-specific defaults and migrations. Each group is applied only once. */
+    private fun applyTelevisionDefaults() {
+        if (!isTelevision()) return
+        prefs.edit {
+            if (!prefs.getBoolean(C.TV_DEFAULTS_APPLIED, false)) {
+                if (!prefs.contains(C.UI_FOLLOW_BUTTON)) {
+                    putString(C.UI_FOLLOW_BUTTON, "1") // Store follows in the local Room database.
+                }
+                if (!prefs.contains(C.UI_START_ON_FOLLOWED)) {
+                    putString(C.UI_START_ON_FOLLOWED, "0")
+                }
+                if (!prefs.contains(C.LANDSCAPE_COLUMN_COUNT)) {
+                    putString(C.LANDSCAPE_COLUMN_COUNT, "4")
+                }
+                putBoolean(C.TV_DEFAULTS_APPLIED, true)
+            }
+            if (!prefs.getBoolean(C.TV_NETWORK_DEFAULT_APPLIED, false)) {
+                // OkHttp follows Android's ProxySelector. Cronet/HttpEngine may bypass a TV box's
+                // HTTP proxy or use QUIC directly, leaving browse pages with an empty Paging result.
+                putString(C.NETWORK_LIBRARY, C.OKHTTP)
+                putBoolean(C.TV_NETWORK_DEFAULT_APPLIED, true)
+            }
+            if (!prefs.getBoolean(C.TV_PLAYER_DEFAULTS_APPLIED, false)) {
+                // Keep the TV overlay concise: Follow, Quality, and More on the upper right.
+                putBoolean(C.PLAYER_FOLLOW, true)
+                putBoolean(C.PLAYER_SETTINGS, true)
+                putBoolean(C.PLAYER_MENU, true)
+                putBoolean(C.PLAYER_DOWNLOAD, false)
+                putBoolean(C.PLAYER_SLEEP, false)
+                putBoolean(C.PLAYER_ASPECT, false)
+                putBoolean(C.PLAYER_SPEED_BUTTON, false)
+                if (!prefs.contains(C.TV_AUTO_MINI_PLAYER)) {
+                    putBoolean(C.TV_AUTO_MINI_PLAYER, false)
+                }
+                putBoolean(C.TV_PLAYER_DEFAULTS_APPLIED, true)
+            }
+            if (!prefs.getBoolean(C.TV_PLAYER_BUTTON_DEFAULTS_V2_APPLIED, false)) {
+                putBoolean(C.PLAYER_VOLUME_BUTTON, false)
+                putBoolean(C.PLAYER_FULLSCREEN, false)
+                putBoolean(C.TV_PLAYER_BUTTON_DEFAULTS_V2_APPLIED, true)
+            }
+        }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (isTelevision()) {
+            val handled = when (val fragment = playerFragment) {
+                is Media3PlayerFragment -> fragment.handleTvRemoteKey(event)
+                is PlayerFragment -> fragment.handleTvRemoteKey(event)
+                else -> false
+            }
+            if (handled) return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     private fun setNavBarColor(isPortrait: Boolean) {
@@ -1154,6 +1211,40 @@ class MainActivity : AppCompatActivity() {
         navController.navigateUp()
     }
 
+    private fun installTelevisionNavigationBackHandler() {
+        if (!isTelevision()) return
+        val rootDestinations = setOf(
+            R.id.rootGamesFragment,
+            R.id.rootTopFragment,
+            R.id.followPagerFragment,
+            R.id.followMediaFragment,
+            R.id.savedPagerFragment,
+            R.id.savedMediaFragment,
+        )
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    val destinationId = navController.currentDestination?.id
+                    if (destinationId in rootDestinations) {
+                        if (!binding.navBar.hasFocus()) {
+                            binding.navBar.post {
+                                binding.navBar.findViewById<View>(binding.navBar.selectedItemId)?.requestFocus()
+                                    ?: binding.navBar.requestFocus()
+                            }
+                        } else {
+                            finishAfterTransition()
+                        }
+                        return
+                    }
+                    if (!navController.popBackStack()) {
+                        finishAfterTransition()
+                    }
+                }
+            },
+        )
+    }
+
     private fun initNavigation() {
         navController = (supportFragmentManager.findFragmentById(R.id.navHostFragment) as NavHostFragment).navController
         val tabList = prefs.getString(C.UI_NAVIGATION_TAB_LIST, null).let { tabPref ->
@@ -1204,7 +1295,7 @@ class MainActivity : AppCompatActivity() {
                     val enabled = split[2] != "0"
                     if (enabled) {
                         when (key) {
-                            "0" -> menu.add(Menu.NONE, R.id.rootGamesFragment, Menu.NONE, R.string.games).setIcon(R.drawable.ic_games_black_24dp)
+                            "0" -> menu.add(Menu.NONE, R.id.rootGamesFragment, Menu.NONE, R.string.browse).setIcon(R.drawable.ic_games_black_24dp)
                             "1" -> menu.add(Menu.NONE, R.id.rootTopFragment, Menu.NONE, R.string.popular).setIcon(R.drawable.ic_trending_up_black_24dp)
                             "2" -> {
                                 if (prefs.getBoolean(C.UI_FOLLOW_PAGER, true)) {
@@ -1237,6 +1328,11 @@ class MainActivity : AppCompatActivity() {
                     if (currentFragment is Scrollable) {
                         currentFragment.scrollToTop()
                     }
+                }
+            }
+            if (isTelevision()) {
+                post {
+                    findViewById<View>(selectedItemId)?.requestFocus() ?: requestFocus()
                 }
             }
         }
@@ -1396,7 +1492,7 @@ class MainActivity : AppCompatActivity() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && SdkExtensions.getExtensionVersion(Build.VERSION_CODES.S) >= 7) {
                     putString(C.NETWORK_LIBRARY, C.HTTP_ENGINE)
                 } else {
-                    if (CronetProvider.getAllProviders(this@MainActivity).any { it.isEnabled }) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && CronetProvider.getAllProviders(this@MainActivity).any { it.isEnabled }) {
                         putString(C.NETWORK_LIBRARY, C.CRONET)
                     }
                 }

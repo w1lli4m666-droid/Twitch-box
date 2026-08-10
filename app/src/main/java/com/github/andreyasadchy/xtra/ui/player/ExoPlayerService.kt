@@ -1,5 +1,8 @@
 package com.github.andreyasadchy.xtra.ui.player
 
+import com.github.andreyasadchy.xtra.util.isNetworkAvailableCompat
+import com.github.andreyasadchy.xtra.util.isActiveNetworkCellularCompat
+
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -10,7 +13,6 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.drawable.Icon
 import android.media.MediaMetadata
 import android.media.audiofx.DynamicsProcessing
 import android.media.session.MediaSession
@@ -318,10 +320,7 @@ class ExoPlayerService : BasePlaybackService() {
                         STREAM -> {
                             val responseCode = (player?.playerError?.cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode ?: 0
                             val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                            val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                            val isNetworkAvailable = networkCapabilities != null
-                                    && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                                    && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                            val isNetworkAvailable = connectivityManager.isNetworkAvailableCompat()
                             if (isNetworkAvailable) {
                                 when {
                                     responseCode == 404 -> {
@@ -348,10 +347,7 @@ class ExoPlayerService : BasePlaybackService() {
                         VIDEO -> {
                             val responseCode = (error.cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode ?: 0
                             val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                            val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                            val isNetworkAvailable = networkCapabilities != null
-                                    && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                                    && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                            val isNetworkAvailable = connectivityManager.isNetworkAvailableCompat()
                             if (isNetworkAvailable) {
                                 when {
                                     !skipAccessToken && responseCode != 0 -> {
@@ -1418,8 +1414,7 @@ class ExoPlayerService : BasePlaybackService() {
                         }
                     }
                     val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                    val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-                    val cellular = networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
+                    val cellular = connectivityManager.isActiveNetworkCellularCompat()
                     if ((!cellular && prefs().getString(C.PLAYER_DEFAULT_QUALITY, "saved") == "saved") || (cellular && prefs().getString(C.PLAYER_DEFAULT_CELLULAR_QUALITY, "saved") == "saved")) {
                         prefs().edit { putString(C.PLAYER_QUALITY, quality.name) }
                     }
@@ -1880,7 +1875,7 @@ class ExoPlayerService : BasePlaybackService() {
                 )
                 addAction(
                     Notification.Action.Builder(
-                        Icon.createWithResource(this@ExoPlayerService, androidx.media3.session.R.drawable.media3_icon_rewind),
+                        androidx.media3.session.R.drawable.media3_icon_rewind,
                         ContextCompat.getString(this@ExoPlayerService, R.string.rewind),
                         PendingIntent.getService(
                             this@ExoPlayerService,
@@ -1895,7 +1890,7 @@ class ExoPlayerService : BasePlaybackService() {
                 if (Util.shouldShowPlayButton(player)) {
                     addAction(
                         Notification.Action.Builder(
-                            Icon.createWithResource(this@ExoPlayerService, androidx.media3.session.R.drawable.media3_icon_play),
+                            androidx.media3.session.R.drawable.media3_icon_play,
                             ContextCompat.getString(this@ExoPlayerService, R.string.resume),
                             PendingIntent.getService(
                                 this@ExoPlayerService,
@@ -1910,7 +1905,7 @@ class ExoPlayerService : BasePlaybackService() {
                 } else {
                     addAction(
                         Notification.Action.Builder(
-                            Icon.createWithResource(this@ExoPlayerService, androidx.media3.session.R.drawable.media3_icon_pause),
+                            androidx.media3.session.R.drawable.media3_icon_pause,
                             ContextCompat.getString(this@ExoPlayerService, R.string.pause),
                             PendingIntent.getService(
                                 this@ExoPlayerService,
@@ -1925,7 +1920,7 @@ class ExoPlayerService : BasePlaybackService() {
                 }
                 addAction(
                     Notification.Action.Builder(
-                        Icon.createWithResource(this@ExoPlayerService, androidx.media3.session.R.drawable.media3_icon_fast_forward),
+                        androidx.media3.session.R.drawable.media3_icon_fast_forward,
                         ContextCompat.getString(this@ExoPlayerService, R.string.forward),
                         PendingIntent.getService(
                             this@ExoPlayerService,

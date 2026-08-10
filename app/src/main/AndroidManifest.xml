@@ -3,6 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:installLocation="auto">
 
+    <!-- cronet-api is compile-time API glue. API 21/22 devices use the OkHttp path. -->
+    <uses-sdk tools:overrideLibrary="org.chromium.net.cronet_api,org.chromium.net.cronet_shared" />
+
     <uses-feature android:name="android.software.leanback"
         android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen"
@@ -20,7 +23,7 @@
     <application
         android:name=".XtraApp"
         android:allowBackup="true"
-        android:banner="@mipmap/ic_launcher"
+        android:banner="@drawable/tv_banner"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:enableOnBackInvokedCallback="true"
         android:fullBackupContent="@xml/backup_rules"
