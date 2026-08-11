@@ -18,6 +18,10 @@ import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 class FollowedStreamsViewModel(
     applicationContext: Context,
@@ -26,7 +30,8 @@ class FollowedStreamsViewModel(
     private val helixRepository: HelixRepository,
 ) : ViewModel() {
 
-    val followChanges = localChannelFollowsRepository.followChanges
+    private var followedStreamsDataSource: FollowedStreamsDataSource? = null
+    private var consumedFollowVersion = localChannelFollowsRepository.followChanges.value.channels
 
     val flow = Pager(
         if (applicationContext.prefs().getString(C.COMPACT_STREAMS, "disabled") != "disabled") {
@@ -44,8 +49,22 @@ class FollowedStreamsViewModel(
             helixRepository = helixRepository,
             enableIntegrity = applicationContext.prefs().getBoolean(C.ENABLE_INTEGRITY, false),
             networkLibrary = applicationContext.prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
-        )
+        ).also { followedStreamsDataSource = it }
     }.flow.cachedIn(viewModelScope)
+
+    init {
+        viewModelScope.launch {
+            localChannelFollowsRepository.followChanges
+                .map { it.channels }
+                .distinctUntilChanged()
+                .collectLatest { version ->
+                    if (version != consumedFollowVersion) {
+                        consumedFollowVersion = version
+                        followedStreamsDataSource?.invalidate()
+                    }
+                }
+        }
+    }
 
     companion object {
         val FollowedStreamsViewModelFactory = viewModelFactory {

@@ -2,11 +2,15 @@ package com.github.andreyasadchy.xtra.repository.datasource
 
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
+import com.github.andreyasadchy.xtra.model.ui.LocalChannelFollow
 import com.github.andreyasadchy.xtra.model.ui.Stream
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.HelixRepository
 import com.github.andreyasadchy.xtra.repository.LocalChannelFollowsRepository
 import com.github.andreyasadchy.xtra.util.C
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 
 class FollowedStreamsDataSource(
     private val userId: String?,
@@ -30,21 +34,15 @@ class FollowedStreamsDataSource(
             }
         } else {
             val list = mutableListOf<Stream>()
-            localChannelFollowsRepository.getAll().mapNotNull { it.userId }.takeIf { it.isNotEmpty() }?.let {
-                try {
-                    gqlQueryLocal(it)
-                } catch (e: Exception) {
-                    try {
-                        if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) helixLocal(it) else throw Exception()
-                    } catch (e: Exception) {
-                        null
-                    }
+            val localFollows = localChannelFollowsRepository.getAll().filter {
+                !it.userId.isNullOrBlank() || !it.userLogin.isNullOrBlank()
+            }
+            if (localFollows.isNotEmpty()) {
+                when (val localResult = loadLocalStreams(localFollows)) {
+                    is LoadResult.Error -> return localResult
+                    is LoadResult.Page -> list.addAll(localResult.data)
+                    else -> Unit
                 }
-            }?.let {
-                if (it is LoadResult.Error && it.throwable.message == C.FAILED_INTEGRITY_CHECK) {
-                    return it
-                }
-                (it as? LoadResult.Page)?.data?.let { list.addAll(it) }
             }
             val result = if (!gqlHeaders[C.HEADER_TOKEN].isNullOrBlank() || !helixHeaders[C.HEADER_TOKEN].isNullOrBlank()) {
                 try {
@@ -210,9 +208,55 @@ class FollowedStreamsDataSource(
         )
     }
 
-    private suspend fun gqlQueryLocal(ids: List<String>): LoadResult<Int, Stream> {
-        val items = ids.chunked(100).map { list ->
-            graphQLRepository.loadQueryUsersStream(networkLibrary, gqlHeaders, list).also { response ->
+    private suspend fun loadLocalStreams(follows: List<LocalChannelFollow>): LoadResult<Int, Stream> {
+        val ids = follows.mapNotNull { it.userId }.distinct()
+        val logins = follows.mapNotNull { it.userLogin }.filter { it.isNotBlank() }.distinct()
+        var lastError: Throwable? = null
+
+        if (ids.isNotEmpty()) {
+            try {
+                return gqlQueryLocal(ids = ids)
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+        if (logins.isNotEmpty()) {
+            try {
+                return gqlQueryLocal(logins = logins)
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+        if (!helixHeaders[C.HEADER_TOKEN].isNullOrBlank() && ids.isNotEmpty()) {
+            try {
+                return helixLocal(ids)
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+
+        return when (val result = gqlChannelPageLocal(follows)) {
+            is LoadResult.Error -> if (result.throwable.message == C.FAILED_INTEGRITY_CHECK) {
+                result
+            } else {
+                LoadResult.Error(result.throwable.takeIf { it.message?.isNotBlank() == true } ?: lastError ?: Exception("Unable to load locally followed live channels"))
+            }
+            else -> result
+        }
+    }
+
+    private suspend fun gqlQueryLocal(
+        ids: List<String>? = null,
+        logins: List<String>? = null,
+    ): LoadResult<Int, Stream> {
+        val values = ids ?: logins.orEmpty()
+        val items = values.chunked(100).map { list ->
+            graphQLRepository.loadQueryUsersStream(
+                networkLibrary = networkLibrary,
+                headers = gqlHeaders,
+                ids = list.takeIf { ids != null },
+                logins = list.takeIf { ids == null },
+            ).also { response ->
                 if (enableIntegrity) {
                     response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let { return LoadResult.Error(Exception(it.message)) }
                 }
@@ -243,6 +287,65 @@ class FollowedStreamsDataSource(
             data = list,
             prevKey = null,
             nextKey = null
+        )
+    }
+
+    private suspend fun gqlChannelPageLocal(follows: List<LocalChannelFollow>): LoadResult<Int, Stream> {
+        val lookups = mutableListOf<LocalStreamLookup>()
+        follows.chunked(LOCAL_CHANNEL_PAGE_CONCURRENCY).forEach { chunk ->
+            lookups += coroutineScope {
+                chunk.map { follow ->
+                    async {
+                        try {
+                            val response = graphQLRepository.loadQueryUserChannelPage(
+                                networkLibrary = networkLibrary,
+                                headers = gqlHeaders,
+                                id = follow.userId,
+                                login = follow.userLogin.takeIf { follow.userId.isNullOrBlank() },
+                            )
+                            response.errors?.find { it.message == C.FAILED_INTEGRITY_CHECK }?.let {
+                                return@async LocalStreamLookup(error = Exception(it.message))
+                            }
+                            val user = response.data?.user
+                            if (user == null && !response.errors.isNullOrEmpty()) {
+                                return@async LocalStreamLookup(error = Exception(response.errors?.firstOrNull()?.message))
+                            }
+                            val stream = user?.stream ?: return@async LocalStreamLookup()
+                            LocalStreamLookup(
+                                stream = Stream(
+                                    id = stream.id,
+                                    channelId = user.id ?: follow.userId,
+                                    channelLogin = user.login ?: follow.userLogin,
+                                    channelName = user.displayName ?: follow.userName,
+                                    channelImageURL = user.profileImageURL ?: follow.channelLogo,
+                                    gameId = stream.game?.id,
+                                    gameSlug = stream.game?.slug,
+                                    gameName = stream.game?.displayName,
+                                    title = stream.title,
+                                    thumbnailURL = stream.previewImageURL,
+                                    createdAt = stream.createdAt?.toString(),
+                                    viewerCount = stream.viewersCount,
+                                )
+                            )
+                        } catch (e: Exception) {
+                            LocalStreamLookup(error = e)
+                        }
+                    }
+                }.awaitAll()
+            }
+        }
+
+        lookups.firstOrNull { it.error?.message == C.FAILED_INTEGRITY_CHECK }?.error?.let {
+            return LoadResult.Error(it)
+        }
+        val successfulLookups = lookups.filter { it.error == null }
+        if (successfulLookups.isEmpty() && lookups.isNotEmpty()) {
+            return LoadResult.Error(lookups.mapNotNull { it.error }.last())
+        }
+        return LoadResult.Page(
+            data = successfulLookups.mapNotNull { it.stream },
+            prevKey = null,
+            nextKey = null,
         )
     }
 
@@ -293,5 +396,14 @@ class FollowedStreamsDataSource(
             val anchorPage = state.closestPageToPosition(anchorPosition)
             anchorPage?.prevKey?.plus(1) ?: anchorPage?.nextKey?.minus(1)
         }
+    }
+
+    private data class LocalStreamLookup(
+        val stream: Stream? = null,
+        val error: Throwable? = null,
+    )
+
+    companion object {
+        private const val LOCAL_CHANNEL_PAGE_CONCURRENCY = 6
     }
 }

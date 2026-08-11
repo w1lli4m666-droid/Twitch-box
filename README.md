@@ -18,6 +18,7 @@ Twitch-box is an Android TV-oriented Twitch browser and player based on [Xtra](h
 - First-result focus and hierarchical Back navigation for categories, channels, and streams.
 - Player exit restores focus to the stream, video, clip, bookmark, or offline-video card that launched playback.
 - Event-driven refreshes keep followed games, live channels, channels, and account-followed videos up to date without reloading them on every visit.
+- The followed Live tab invalidates its cached paging source immediately after a channel follow change and can resolve local follows without a Twitch account token.
 - Optional automatic mini-player playback. It is disabled by default.
 
 ## Downloads
@@ -26,9 +27,9 @@ Download the latest APKs from the [GitHub Releases page](https://github.com/w1ll
 
 | APK | Recommended for |
 | --- | --- |
-| `Twitch-box-v2.58.5.5-armeabi-v7a.apk` | 32-bit ARM TV boxes and older Android devices |
-| `Twitch-box-v2.58.5.5-arm64-v8a.apk` | 64-bit ARM Android TV devices |
-| `Twitch-box-v2.58.5.5-universal.apk` | ARM devices where the architecture is unknown; includes both ARMv7 and ARM64 libraries |
+| `Twitch-box-v2.58.5.6-armeabi-v7a.apk` | 32-bit ARM TV boxes and older Android devices |
+| `Twitch-box-v2.58.5.6-arm64-v8a.apk` | 64-bit ARM Android TV devices |
+| `Twitch-box-v2.58.5.6-universal.apk` | ARM devices where the architecture is unknown; includes both ARMv7 and ARM64 libraries |
 
 ## Remote control guide
 
@@ -43,6 +44,7 @@ Download the latest APKs from the [GitHub Releases page](https://github.com/w1ll
 - The empty **Filters** heading and tag row are hidden in Browse-category and Popular stream sorting, so D-pad Down moves directly to **Languages**.
 - **Apply to all categories** stores a common default, while **Remember choices for this game** stores an override for only the current category.
 - Following lists refresh only after a relevant follow change: channel changes refresh **Live** and **Channels**, game changes refresh **Games**, and Twitch account channel changes also refresh **Videos**.
+- The **Live** list keeps its consumed follow version in the ViewModel, so a follow change cannot be lost when the page view is recreated. If the batch lookup for locally followed live channels fails, the app retries by login, then uses account Helix access when available, and finally checks channel pages without requiring a Twitch account token.
 - **Back** returns one level at a time and restores focus to the item that opened that level. For example, a stream returns to its category, and the category returns to **Browse**.
 - Search and Settings are available from the top navigation row.
 
