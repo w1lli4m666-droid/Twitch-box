@@ -153,6 +153,7 @@ class GamePagerViewModel(
                         } else {
                             _isFollowing.value = true
                             follow.value = Pair(true, null)
+                            localGameFollowsRepository.notifyFollowChanged()
                         }
                     } else {
                         File(filesDir, "box_art").mkdir()
@@ -259,6 +260,7 @@ class GamePagerViewModel(
                         } else {
                             _isFollowing.value = false
                             follow.value = Pair(false, null)
+                            localGameFollowsRepository.notifyFollowChanged()
                         }
                     } else {
                         localGameFollowsRepository.getById(gameId)?.let { localGameFollowsRepository.delete(it) }

@@ -32,6 +32,7 @@ class FollowedGamesFragment : PagedListFragment(), Scrollable {
     private val binding get() = _binding!!
     private val viewModel: FollowedGamesViewModel by viewModels { FollowedGamesViewModelFactory }
     private lateinit var pagingAdapter: PagingDataAdapter<Game, out RecyclerView.ViewHolder>
+    private var followVersion: Long? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = CommonRecyclerViewLayoutBinding.inflate(inflater, container, false)
@@ -48,6 +49,18 @@ class FollowedGamesFragment : PagedListFragment(), Scrollable {
             )
         }
         setAdapter(binding.recyclerView, pagingAdapter)
+        followVersion = viewModel.followChanges.value
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.followChanges.collectLatest { version ->
+                    val previousVersion = followVersion
+                    followVersion = version
+                    if (previousVersion != null && previousVersion != version) {
+                        pagingAdapter.refresh()
+                    }
+                }
+            }
+        }
         ViewCompat.setOnApplyWindowInsetsListener(view) { _, windowInsets ->
             if (activity?.findViewById<LinearLayout>(R.id.navBarContainer)?.isVisible == false) {
                 val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())

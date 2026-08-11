@@ -36,6 +36,7 @@ class FollowedChannelsViewModel(
     private val helixRepository: HelixRepository,
 ) : ViewModel() {
 
+    val followChanges = localChannelFollowsRepository.followChanges
     val filter = MutableStateFlow<Filter?>(null)
     val sortText = MutableStateFlow<CharSequence?>(null)
 

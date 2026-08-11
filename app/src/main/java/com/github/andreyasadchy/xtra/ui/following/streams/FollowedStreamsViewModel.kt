@@ -26,6 +26,8 @@ class FollowedStreamsViewModel(
     private val helixRepository: HelixRepository,
 ) : ViewModel() {
 
+    val followChanges = localChannelFollowsRepository.followChanges
+
     val flow = Pager(
         if (applicationContext.prefs().getString(C.COMPACT_STREAMS, "disabled") != "disabled") {
             PagingConfig(pageSize = 30, prefetchDistance = 10, initialLoadSize = 30)

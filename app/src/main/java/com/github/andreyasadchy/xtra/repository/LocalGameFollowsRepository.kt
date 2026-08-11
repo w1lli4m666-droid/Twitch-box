@@ -3,12 +3,18 @@ package com.github.andreyasadchy.xtra.repository
 import com.github.andreyasadchy.xtra.db.LocalGameFollowsDao
 import com.github.andreyasadchy.xtra.model.ui.LocalGameFollow
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import java.io.File
 
 class LocalGameFollowsRepository(
     private val localGameFollowsDao: LocalGameFollowsDao,
 ) {
+
+    private val _followChanges = MutableStateFlow(0L)
+    val followChanges = _followChanges.asStateFlow()
 
     suspend fun getAll() = withContext(Dispatchers.IO) {
         localGameFollowsDao.getAll()
@@ -20,6 +26,7 @@ class LocalGameFollowsRepository(
 
     suspend fun save(item: LocalGameFollow) = withContext(Dispatchers.IO) {
         localGameFollowsDao.insert(item)
+        notifyFollowChanged()
     }
 
     suspend fun delete(item: LocalGameFollow) = withContext(Dispatchers.IO) {
@@ -29,6 +36,11 @@ class LocalGameFollowsRepository(
             }
         }
         localGameFollowsDao.delete(item)
+        notifyFollowChanged()
+    }
+
+    fun notifyFollowChanged() {
+        _followChanges.update { it + 1L }
     }
 
     suspend fun update(item: LocalGameFollow) = withContext(Dispatchers.IO) {

@@ -137,6 +137,11 @@ abstract class Media3PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFr
 
     private val backPressedCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
+            if (binding.playerControls.root.isVisible) {
+                binding.playerControls.root.clearFocus()
+                hideController(force = true)
+                return
+            }
             if (requireContext().isTelevision() && !requireContext().prefs().getBoolean(C.TV_AUTO_MINI_PLAYER, false)) {
                 close()
                 (activity as? MainActivity)?.closePlayer()

@@ -36,6 +36,7 @@ class FollowedStreamsFragment : PagedListFragment(), Scrollable {
     private val binding get() = _binding!!
     private val viewModel: FollowedStreamsViewModel by viewModels { FollowedStreamsViewModelFactory }
     private lateinit var pagingAdapter: PagingDataAdapter<Stream, out RecyclerView.ViewHolder>
+    private var followVersion: Long? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = CommonRecyclerViewLayoutBinding.inflate(inflater, container, false)
@@ -62,6 +63,18 @@ class FollowedStreamsFragment : PagedListFragment(), Scrollable {
             })
         }
         setAdapter(binding.recyclerView, pagingAdapter)
+        followVersion = viewModel.followChanges.value.channels
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.followChanges.collectLatest { changes ->
+                    val previousVersion = followVersion
+                    followVersion = changes.channels
+                    if (previousVersion != null && previousVersion != changes.channels) {
+                        pagingAdapter.refresh()
+                    }
+                }
+            }
+        }
         ViewCompat.setOnApplyWindowInsetsListener(view) { _, windowInsets ->
             if (activity?.findViewById<LinearLayout>(R.id.navBarContainer)?.isVisible == false) {
                 val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())

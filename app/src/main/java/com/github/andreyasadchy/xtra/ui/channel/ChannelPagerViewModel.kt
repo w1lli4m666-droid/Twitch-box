@@ -288,6 +288,7 @@ class ChannelPagerViewModel(
                         } else {
                             _isFollowing.value = true
                             follow.value = Pair(true, null)
+                            localChannelFollowsRepository.notifyAccountFollowChanged()
                             if (!disableNotifications) {
                                 _notificationsEnabled.value = true
                             }
@@ -340,6 +341,7 @@ class ChannelPagerViewModel(
                         } else {
                             _isFollowing.value = false
                             follow.value = Pair(false, null)
+                            localChannelFollowsRepository.notifyAccountFollowChanged()
                             _notificationsEnabled.value = false
                         }
                     } else {

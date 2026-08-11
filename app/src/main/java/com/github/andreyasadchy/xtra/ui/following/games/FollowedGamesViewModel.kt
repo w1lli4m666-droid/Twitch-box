@@ -23,6 +23,8 @@ class FollowedGamesViewModel(
     private val graphQLRepository: GraphQLRepository,
 ) : ViewModel() {
 
+    val followChanges = localGameFollowsRepository.followChanges
+
     val flow = Pager(
         PagingConfig(pageSize = 30, prefetchDistance = 10, initialLoadSize = 30)
     ) {
