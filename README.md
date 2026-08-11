@@ -16,6 +16,7 @@ Twitch-box is an Android TV-oriented Twitch browser and player based on [Xtra](h
 - Proxy-aware network access for Twitch content.
 - Remote-friendly player controls, dialogs, menus, quality selection, chat controls, and fullscreen actions.
 - First-result focus and hierarchical Back navigation for categories, channels, and streams.
+- Player exit restores focus to the stream, video, clip, bookmark, or offline-video card that launched playback.
 - Event-driven refreshes keep followed games, live channels, channels, and account-followed videos up to date without reloading them on every visit.
 - Optional automatic mini-player playback. It is disabled by default.
 
@@ -25,9 +26,9 @@ Download the latest APKs from the [GitHub Releases page](https://github.com/w1ll
 
 | APK | Recommended for |
 | --- | --- |
-| `Twitch-box-v2.58.5.4-armeabi-v7a.apk` | 32-bit ARM TV boxes and older Android devices |
-| `Twitch-box-v2.58.5.4-arm64-v8a.apk` | 64-bit ARM Android TV devices |
-| `Twitch-box-v2.58.5.4-universal.apk` | ARM devices where the architecture is unknown; includes both ARMv7 and ARM64 libraries |
+| `Twitch-box-v2.58.5.5-armeabi-v7a.apk` | 32-bit ARM TV boxes and older Android devices |
+| `Twitch-box-v2.58.5.5-arm64-v8a.apk` | 64-bit ARM Android TV devices |
+| `Twitch-box-v2.58.5.5-universal.apk` | ARM devices where the architecture is unknown; includes both ARMv7 and ARM64 libraries |
 
 ## Remote control guide
 
@@ -51,6 +52,7 @@ Download the latest APKs from the [GitHub Releases page](https://github.com/w1ll
 - Use the D-pad to reach playback, chat, subtitle, audio, volume, fullscreen, and player-menu actions. Press **OK/Select** to activate the focused action.
 - The toolbar hides after 6 seconds when focus is not moving on it.
 - When player controls are visible, **Back** hides them immediately. Press **Back** again after they are hidden to close or minimize playback according to the automatic mini-player setting.
+- After playback is closed, focus returns to the card that launched it. The app tracks both its list position and content identity, so focus can still be restored after paging changes.
 - Press and hold **Left** or **Right** for 600 ms to start rewinding or fast-forwarding. The player then jumps 10 seconds approximately every 600 ms. After the key has been held for more than 5 seconds, each jump accelerates to 60 seconds.
 - The **Player menu** contains additional actions such as viewers, download, share, and subtitles when those actions are available.
 - **Volume** and **Fullscreen** buttons are disabled by default in **Settings > Player button settings**, but they can be enabled there.

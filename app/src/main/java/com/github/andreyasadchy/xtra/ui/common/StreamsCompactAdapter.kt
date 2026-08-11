@@ -27,6 +27,7 @@ import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
+import com.github.andreyasadchy.xtra.ui.view.TelevisionFocusIdentityAdapter
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
@@ -46,7 +47,7 @@ class StreamsCompactAdapter(
             oldItem.viewerCount == newItem.viewerCount &&
                     oldItem.gameName == newItem.gameName &&
                     oldItem.title == newItem.title
-    }) {
+    }), TelevisionFocusIdentityAdapter {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PagingViewHolder {
         val binding = FragmentStreamsListItemCompactBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -56,6 +57,15 @@ class StreamsCompactAdapter(
     override fun onBindViewHolder(holder: PagingViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
+
+    override fun getTelevisionFocusIdentity(position: Int): String? =
+        peek(position)?.let(::focusIdentity)
+
+    override fun findTelevisionFocusPosition(identity: String): Int? =
+        (0 until itemCount).firstOrNull { getTelevisionFocusIdentity(it) == identity }
+
+    private fun focusIdentity(item: Stream): String? =
+        (item.id ?: item.channelId ?: item.channelLogin)?.let { "stream:$it" }
 
     inner class PagingViewHolder(
         private val binding: FragmentStreamsListItemCompactBinding,

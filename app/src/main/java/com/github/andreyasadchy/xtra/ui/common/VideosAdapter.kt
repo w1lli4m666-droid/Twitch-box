@@ -27,6 +27,7 @@ import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
+import com.github.andreyasadchy.xtra.ui.view.TelevisionFocusIdentityAdapter
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
@@ -48,7 +49,7 @@ class VideosAdapter(
                     oldItem.thumbnailURL == newItem.thumbnailURL &&
                     oldItem.title == newItem.title &&
                     oldItem.durationSeconds == newItem.durationSeconds
-    }) {
+    }), TelevisionFocusIdentityAdapter {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PagingViewHolder {
         val binding = FragmentVideosListItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -58,6 +59,12 @@ class VideosAdapter(
     override fun onBindViewHolder(holder: PagingViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
+
+    override fun getTelevisionFocusIdentity(position: Int): String? =
+        peek(position)?.id?.let { "video:$it" }
+
+    override fun findTelevisionFocusPosition(identity: String): Int? =
+        (0 until itemCount).firstOrNull { getTelevisionFocusIdentity(it) == identity }
 
     private var positions: List<VideoPosition>? = null
 

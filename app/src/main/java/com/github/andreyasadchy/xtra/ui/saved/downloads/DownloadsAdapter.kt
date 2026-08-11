@@ -31,6 +31,7 @@ import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
+import com.github.andreyasadchy.xtra.ui.view.TelevisionFocusIdentityAdapter
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
@@ -54,7 +55,7 @@ class DownloadsAdapter(
         override fun areContentsTheSame(oldItem: OfflineVideo, newItem: OfflineVideo): Boolean {
             return false //bug, oldItem and newItem are sometimes the same
         }
-    }) {
+    }), TelevisionFocusIdentityAdapter {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PagingViewHolder {
         val binding = FragmentDownloadsListItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -64,6 +65,12 @@ class DownloadsAdapter(
     override fun onBindViewHolder(holder: PagingViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
+
+    override fun getTelevisionFocusIdentity(position: Int): String? =
+        peek(position)?.let { "offline-video:${it.id}" }
+
+    override fun findTelevisionFocusPosition(identity: String): Int? =
+        (0 until itemCount).firstOrNull { getTelevisionFocusIdentity(it) == identity }
 
     var activeVideoDownloads: List<DownloadProgress>? = null
     var activeStreamDownloads: List<DownloadProgress>? = null

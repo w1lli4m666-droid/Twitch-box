@@ -27,6 +27,7 @@ import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
+import com.github.andreyasadchy.xtra.ui.view.TelevisionFocusIdentityAdapter
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper.getDurationFromSeconds
@@ -49,7 +50,7 @@ class BookmarksAdapter(
         override fun areContentsTheSame(oldItem: Bookmark, newItem: Bookmark): Boolean =
             oldItem.title == newItem.title &&
                     oldItem.duration == newItem.duration
-    }) {
+    }), TelevisionFocusIdentityAdapter {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PagingViewHolder {
         val binding = FragmentVideosListItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -59,6 +60,12 @@ class BookmarksAdapter(
     override fun onBindViewHolder(holder: PagingViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
+
+    override fun getTelevisionFocusIdentity(position: Int): String? =
+        currentList.getOrNull(position)?.videoId?.let { "bookmark-video:$it" }
+
+    override fun findTelevisionFocusPosition(identity: String): Int? =
+        currentList.indices.firstOrNull { getTelevisionFocusIdentity(it) == identity }
 
     private var positions: List<VideoPosition>? = null
 

@@ -95,6 +95,7 @@ import com.github.andreyasadchy.xtra.ui.saved.SavedPagerFragment
 import com.github.andreyasadchy.xtra.ui.saved.downloads.DownloadsFragment
 import com.github.andreyasadchy.xtra.ui.team.TeamFragmentDirections
 import com.github.andreyasadchy.xtra.ui.top.TopStreamsFragmentDirections
+import com.github.andreyasadchy.xtra.ui.view.TelevisionFocusReturnTarget
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.applyTheme
@@ -137,6 +138,8 @@ class MainActivity : AppCompatActivity() {
     var logoutResultLauncher: ActivityResultLauncher<Intent>? = null
     private var updateDownloadDialogBinding: DialogUpdateDownloadBinding? = null
     private var updateDownloadDialog: AlertDialog? = null
+    private var televisionPlayerFocusReturnTarget: TelevisionFocusReturnTarget? = null
+    private var televisionPlayerFocusCaptured = false
 
     //Lifecycle methods
 
@@ -1116,6 +1119,13 @@ class MainActivity : AppCompatActivity() {
 //Player methods
 
     private fun startPlayer(fragment: Fragment) {
+        if (isTelevision()) {
+            if (!televisionPlayerFocusCaptured) {
+                televisionPlayerFocusReturnTarget = TelevisionFocusReturnTarget.capture(currentFocus)
+                televisionPlayerFocusCaptured = true
+            }
+            binding.playerContainer.isFocusable = true
+        }
         playerFragment = fragment
         supportFragmentManager.beginTransaction()
             .replace(R.id.playerContainer, fragment).commit()
@@ -1129,10 +1139,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun closePlayer() {
-        supportFragmentManager.beginTransaction()
-            .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE)
-            .remove(supportFragmentManager.findFragmentById(R.id.playerContainer)!!)
-            .commit()
+        val fragment = supportFragmentManager.findFragmentById(R.id.playerContainer)
+        if (fragment != null) {
+            supportFragmentManager.beginTransaction()
+                .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE)
+                .remove(fragment)
+                .runOnCommit {
+                    if (playerFragment == null) {
+                        restoreTelevisionFocusAfterPlayerClose()
+                    }
+                }
+                .commit()
+        } else {
+            restoreTelevisionFocusAfterPlayerClose()
+        }
         playerFragment = null
         viewModel.isPlayerOpened = false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
@@ -1142,9 +1162,22 @@ class MainActivity : AppCompatActivity() {
         viewModel.sleepTimerEndTime = 0L
     }
 
+    private fun restoreTelevisionFocusAfterPlayerClose() {
+        if (!isTelevision()) return
+        binding.playerContainer.clearFocus()
+        binding.playerContainer.isFocusable = false
+        val returnTarget = televisionPlayerFocusReturnTarget
+        televisionPlayerFocusReturnTarget = null
+        televisionPlayerFocusCaptured = false
+        returnTarget?.restore()
+    }
+
     private fun restorePlayerFragment() {
         if (playerFragment == null) {
             playerFragment = supportFragmentManager.findFragmentById(R.id.playerContainer) as? Media3PlayerFragment ?: supportFragmentManager.findFragmentById(R.id.playerContainer) as? PlayerFragment
+            if (isTelevision()) {
+                binding.playerContainer.isFocusable = playerFragment != null
+            }
             if (playerFragment == null) {
                 if (prefs.getString(C.PLAYER, C.EXOPLAYER) != C.MEDIA_PLAYER && prefs.getBoolean(C.DEBUG_USE_CUSTOM_PLAYBACK_SERVICE, true)) {
                     viewModel.getPlaybackStates()

@@ -25,6 +25,7 @@ import com.github.andreyasadchy.xtra.ui.channel.ChannelPagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GameMediaFragmentDirections
 import com.github.andreyasadchy.xtra.ui.game.GamePagerFragmentDirections
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
+import com.github.andreyasadchy.xtra.ui.view.TelevisionFocusIdentityAdapter
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
@@ -43,7 +44,7 @@ class ClipsAdapter(
         override fun areContentsTheSame(oldItem: Clip, newItem: Clip): Boolean =
             oldItem.viewCount == newItem.viewCount &&
                     oldItem.title == newItem.title
-    }) {
+    }), TelevisionFocusIdentityAdapter {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PagingViewHolder {
         val binding = FragmentVideosListItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -53,6 +54,12 @@ class ClipsAdapter(
     override fun onBindViewHolder(holder: PagingViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
+
+    override fun getTelevisionFocusIdentity(position: Int): String? =
+        peek(position)?.id?.let { "clip:$it" }
+
+    override fun findTelevisionFocusPosition(identity: String): Int? =
+        (0 until itemCount).firstOrNull { getTelevisionFocusIdentity(it) == identity }
 
     inner class PagingViewHolder(
         private val binding: FragmentVideosListItemBinding,
