@@ -20,12 +20,9 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import coil3.request.target
-import coil3.request.transformations
-import coil3.transform.CircleCropTransformation
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.DialogChatMessageClickBinding
 import com.github.andreyasadchy.xtra.model.chat.ChatMessage
@@ -260,7 +257,7 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
                 clipboard?.setPrimaryClip(ClipData.newPlainText("label", chatMessage.fullMsg))
                 dismiss()
             }
-            if (requireContext().prefs().getBoolean(C.CHAT_TRANSLATE, false) && (chatMessage.message != null || chatMessage.systemMsg != null) && Build.SUPPORTED_64_BIT_ABIS.firstOrNull() == "arm64-v8a") {
+            if (requireContext().prefs().getBoolean(C.CHAT_TRANSLATE, false) && (chatMessage.message != null || chatMessage.systemMsg != null) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && Build.SUPPORTED_64_BIT_ABIS.firstOrNull() == "arm64-v8a") {
                 translateMessage.visibility = View.VISIBLE
                 translateMessage.setOnClickListener {
                     listener.onTranslateMessageClicked(chatMessage, null)
@@ -295,29 +292,27 @@ class MessageClickedDialog : BottomSheetDialogFragment(), IntegrityDialog.Listen
             if (user.bannerImageURL != null) {
                 userLayout.visibility = View.VISIBLE
                 bannerImage.visibility = View.VISIBLE
-                requireContext().imageLoader.enqueue(
-                    ImageRequest.Builder(requireContext()).apply {
-                        data(user.bannerImageURL)
-                        crossfade(true)
-                        target(bannerImage)
-                    }.build()
-                )
+                Glide.with(this@MessageClickedDialog)
+                    .load(user.bannerImageURL)
+                    .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                    .transition(DrawableTransitionOptions.withCrossFade())
+                    .into(bannerImage)
             } else {
                 bannerImage.visibility = View.GONE
             }
             if (user.profileImage != null) {
                 userLayout.visibility = View.VISIBLE
                 userImage.visibility = View.VISIBLE
-                requireContext().imageLoader.enqueue(
-                    ImageRequest.Builder(requireContext()).apply {
-                        data(user.profileImage)
+                Glide.with(this@MessageClickedDialog)
+                    .load(user.profileImage)
+                    .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                    .transition(DrawableTransitionOptions.withCrossFade())
+                    .apply {
                         if (requireContext().prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true)) {
-                            transformations(CircleCropTransformation())
+                            circleCrop()
                         }
-                        crossfade(true)
-                        target(userImage)
-                    }.build()
-                )
+                    }
+                    .into(userImage)
                 userImage.setOnClickListener {
                     listener.onViewProfileClicked(user.id, user.login, user.name, user.profileImage)
                     dismiss()

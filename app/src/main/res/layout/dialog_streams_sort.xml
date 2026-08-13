@@ -21,7 +21,8 @@
                 android:text="@string/sort"
                 android:textAppearance="?attr/textAppearanceTitleSmall"
                 android:textStyle="bold"
-                android:layout_marginStart="5dp" />
+                android:layout_marginStart="5dp"
+                android:layout_marginLeft="5dp" />
 
             <RadioButton
                 android:id="@+id/viewers_high"
@@ -47,6 +48,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="5dp"
+            android:layout_marginLeft="5dp"
             android:layout_marginBottom="5dp"
             android:text="@string/filters"
             android:textAppearance="?attr/textAppearanceTitleSmall"

@@ -6,8 +6,10 @@ import android.app.admin.DeviceAdminReceiver
 import android.app.admin.DevicePolicyManager
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
+import android.content.ContentResolver
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.ext.SdkExtensions
@@ -27,6 +29,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.widget.SearchView
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
@@ -81,6 +84,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.chromium.net.CronetProvider
+import java.io.File
 import java.util.Collections
 import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
@@ -258,32 +262,95 @@ class SettingsActivity : AppCompatActivity() {
 
         override fun onCreate(savedInstanceState: Bundle?) {
             super.onCreate(savedInstanceState)
-            backupResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-                if (result.resultCode == RESULT_OK) {
-                    result.data?.data?.let {
-                        viewModel.backupSettings(it.toString())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                backupResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                    if (result.resultCode == RESULT_OK) {
+                        result.data?.data?.let {
+                            viewModel.backupSettings(it.toString())
+                        }
+                    }
+                }
+            } else {
+                backupResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                    if (result.resultCode == RESULT_OK) {
+                        result.data?.data?.let {
+                            val isShared = it.scheme == ContentResolver.SCHEME_CONTENT
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && isShared) {
+                                val storage = ContextCompat.getExternalFilesDirs(requireContext(), ".downloads").mapIndexedNotNull { index, file ->
+                                    file?.absolutePath?.let { path ->
+                                        if (index == 0) {
+                                            getString(R.string.internal_storage) to path
+                                        } else {
+                                            path.substringBefore("/Android/data", "").takeIf { it.isNotBlank() }?.let {
+                                                it.substringAfterLast(File.separatorChar) to path
+                                            }
+                                        }
+                                    }
+                                }
+                                val uri = Uri.decode(it.path).substringAfter("/document/")
+                                val storageName = uri.substringBefore(":")
+                                val storagePath = if (storageName.equals("primary", true)) {
+                                    storage.firstOrNull()
+                                } else {
+                                    if (storage.size >= 2) {
+                                        storage.lastOrNull()
+                                    } else {
+                                        storage.firstOrNull()
+                                    }
+                                }?.second?.substringBefore("/Android/data") ?: "/storage/emulated/0"
+                                val path = uri.substringAfter(":").substringBeforeLast("/")
+                                val fullUri = "$storagePath/$path"
+                                viewModel.backupSettings(fullUri)
+                            } else {
+                                it.path?.substringBeforeLast("/")?.let { uri -> viewModel.backupSettings(uri) }
+                            }
+                        }
                     }
                 }
             }
-            restoreResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-                if (result.resultCode == RESULT_OK) {
-                    val list = mutableListOf<String>()
-                    result.data?.clipData?.let { clipData ->
-                        for (i in 0 until clipData.itemCount) {
-                            val item = clipData.getItemAt(i)
-                            item.uri?.let {
-                                list.add(it.toString())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                restoreResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                    if (result.resultCode == RESULT_OK) {
+                        val list = mutableListOf<String>()
+                        result.data?.clipData?.let { clipData ->
+                            for (i in 0 until clipData.itemCount) {
+                                val item = clipData.getItemAt(i)
+                                item.uri?.let {
+                                    list.add(it.toString())
+                                }
                             }
+                        } ?: result.data?.data?.let {
+                            list.add(it.toString())
                         }
-                    } ?: result.data?.data?.let {
-                        list.add(it.toString())
+                        viewModel.restoreSettings(
+                            list = list,
+                            networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
+                            gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext(), true),
+                            helixHeaders = TwitchApiHelper.getHelixHeaders(requireContext())
+                        )
                     }
-                    viewModel.restoreSettings(
-                        list = list,
-                        networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
-                        gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext(), true),
-                        helixHeaders = TwitchApiHelper.getHelixHeaders(requireContext())
-                    )
+                }
+            } else {
+                restoreResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                    if (result.resultCode == RESULT_OK) {
+                        val list = mutableListOf<String>()
+                        result.data?.clipData?.let { clipData ->
+                            for (i in 0 until clipData.itemCount) {
+                                val item = clipData.getItemAt(i)
+                                item.uri?.path?.let {
+                                    list.add(it)
+                                }
+                            }
+                        } ?: result.data?.data?.path?.let {
+                            list.add(it)
+                        }
+                        viewModel.restoreSettings(
+                            list = list,
+                            networkLibrary = requireContext().prefs().getString(C.NETWORK_LIBRARY, "OkHttp"),
+                            gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext(), true),
+                            helixHeaders = TwitchApiHelper.getHelixHeaders(requireContext())
+                        )
+                    }
                 }
             }
         }
@@ -427,7 +494,7 @@ class SettingsActivity : AppCompatActivity() {
             findPreference<Preference>("check_updates")?.setOnPreferenceClickListener {
                 viewModel.checkUpdates(
                     requireContext().prefs().getString(C.NETWORK_LIBRARY, C.OKHTTP),
-                    requireContext().prefs().getString(C.UPDATE_URL, null) ?: "https://api.github.com/repos/crackededed/xtra/releases/tags/latest",
+                    requireContext().prefs().getString(C.UPDATE_URL, null) ?: "https://api.github.com/repos/crackededed/xtra/releases/tags/api16",
                     requireContext().tokenPrefs().getLong(C.UPDATE_LAST_CHECKED, 0)
                 )
                 true
@@ -438,15 +505,42 @@ class SettingsActivity : AppCompatActivity() {
                 true
             }
             findPreference<Preference>("backup_settings")?.setOnPreferenceClickListener {
-                backupResultLauncher?.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE))
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    backupResultLauncher?.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE))
+                } else {
+                    try {
+                        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "*/*"
+                        }
+                        backupResultLauncher?.launch(intent)
+                    } catch (e: ActivityNotFoundException) {
+                        Toast.makeText(requireContext(), R.string.no_file_manager_found, Toast.LENGTH_LONG).show()
+                    }
+                }
                 true
             }
             findPreference<Preference>("restore_settings")?.setOnPreferenceClickListener {
-                restoreResultLauncher?.launch(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                    type = "*/*"
-                    putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-                })
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                    restoreResultLauncher?.launch(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "*/*"
+                        putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                    })
+                } else {
+                    try {
+                        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "*/*"
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+                                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                            }
+                        }
+                        restoreResultLauncher?.launch(intent)
+                    } catch (e: ActivityNotFoundException) {
+                        Toast.makeText(requireContext(), R.string.no_file_manager_found, Toast.LENGTH_LONG).show()
+                    }
+                }
                 true
             }
             findPreference<Preference>("debug_settings")?.setOnPreferenceClickListener {
@@ -505,7 +599,7 @@ class SettingsActivity : AppCompatActivity() {
                                 .setTitle(getString(R.string.update_available))
                                 .setMessage(getString(R.string.update_message))
                                 .setPositiveButton(getString(R.string.yes)) { _, _ ->
-                                    if (requireContext().prefs().getBoolean(C.UPDATE_USE_BROWSER, false)) {
+                                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP || requireContext().prefs().getBoolean(C.UPDATE_USE_BROWSER, false)) {
                                         try {
                                             val intent = Intent(Intent.ACTION_VIEW, it.toUri()).apply {
                                                 addCategory(Intent.CATEGORY_BROWSABLE)
@@ -921,7 +1015,7 @@ class SettingsActivity : AppCompatActivity() {
                     true
                 }
             }
-            if (Build.SUPPORTED_64_BIT_ABIS.firstOrNull() == "arm64-v8a") {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && Build.SUPPORTED_64_BIT_ABIS.firstOrNull() == "arm64-v8a") {
                 val languages = TranslateLanguage.getAllLanguages()
                 val names = languages.map { Locale.forLanguageTag(it).displayLanguage }.toTypedArray()
                 findPreference<Preference>("downloaded_languages")?.setOnPreferenceClickListener {
@@ -1009,6 +1103,9 @@ class SettingsActivity : AppCompatActivity() {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !requireActivity().packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                 findPreference<SwitchPreferenceCompat>(C.PLAYER_BACKGROUND_AUDIO_PIP_CLOSED)?.isVisible = false
                 findPreference<SwitchPreferenceCompat>(C.PLAYER_BACKGROUND_AUDIO_PIP_LOCKED)?.isVisible = false
+            }
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                findPreference<ListPreference>(C.PLAYER_DEFAULT_CELLULAR_QUALITY)?.isVisible = false
             }
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
                 findPreference<SwitchPreferenceCompat>(C.PLAYER_ROUNDED_CORNER_PADDING)?.isVisible = false
@@ -1379,6 +1476,9 @@ class SettingsActivity : AppCompatActivity() {
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.download_preferences, rootKey)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                findPreference<SwitchPreferenceCompat>(C.DOWNLOAD_WIFI_ONLY)?.isVisible = false
+            }
             findPreference<Preference>("import_app_downloads")?.setOnPreferenceClickListener {
                 viewModel.importDownloads()
                 true
@@ -1443,23 +1543,27 @@ class SettingsActivity : AppCompatActivity() {
                     true
                 }
             }
-            findPreference<SwitchPreferenceCompat>("update_use_browser")?.setOnPreferenceChangeListener { _, newValue ->
-                if (Build.VERSION.SDK_INT == Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
-                    newValue == false &&
-                    requireContext().prefs().getBoolean(C.UPDATE_CHECK_ENABLED, false) &&
-                    !requireContext().packageManager.canRequestPackageInstalls()
-                ) {
-                    try {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                            "package:${requireContext().packageName}".toUri()
-                        )
-                        startActivity(intent)
-                    } catch (e: ActivityNotFoundException) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                findPreference<SwitchPreferenceCompat>("update_use_browser")?.setOnPreferenceChangeListener { _, newValue ->
+                    if (Build.VERSION.SDK_INT == Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
+                        newValue == false &&
+                        requireContext().prefs().getBoolean(C.UPDATE_CHECK_ENABLED, false) &&
+                        !requireContext().packageManager.canRequestPackageInstalls()
+                    ) {
+                        try {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                "package:${requireContext().packageName}".toUri()
+                            )
+                            startActivity(intent)
+                        } catch (e: ActivityNotFoundException) {
 
+                        }
                     }
+                    true
                 }
-                true
+            } else {
+                findPreference<SwitchPreferenceCompat>("update_use_browser")?.isVisible = false
             }
         }
 
@@ -1506,9 +1610,15 @@ class SettingsActivity : AppCompatActivity() {
                     true
                 }
             }
-            findPreference<Preference>("get_integrity_token")?.setOnPreferenceClickListener {
-                IntegrityDialog.newInstance(null).show(childFragmentManager, null)
-                true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                findPreference<Preference>("get_integrity_token")?.setOnPreferenceClickListener {
+                    IntegrityDialog.newInstance(null).show(childFragmentManager, null)
+                    true
+                }
+            } else {
+                findPreference<SwitchPreferenceCompat>("use_webview_integrity")?.isVisible = false
+                findPreference<SwitchPreferenceCompat>("get_all_gql_headers")?.isVisible = false
+                findPreference<Preference>("get_integrity_token")?.isVisible = false
             }
         }
 

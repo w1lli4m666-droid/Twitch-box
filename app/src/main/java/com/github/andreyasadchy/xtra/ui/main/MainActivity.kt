@@ -30,6 +30,7 @@ import android.view.Menu
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResultLauncher
@@ -131,6 +132,7 @@ class MainActivity : AppCompatActivity() {
     var playerFragment: Fragment? = null
         private set
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var networkReceiver: BroadcastReceiver? = null
     private var pipActionReceiver: BroadcastReceiver? = null
     private lateinit var prefs: SharedPreferences
     var settingsResultLauncher: ActivityResultLauncher<Intent>? = null
@@ -140,11 +142,13 @@ class MainActivity : AppCompatActivity() {
     private var updateDownloadDialog: AlertDialog? = null
     private var televisionPlayerFocusReturnTarget: TelevisionFocusReturnTarget? = null
     private var televisionPlayerFocusCaptured = false
+    var orientation: Int = Configuration.ORIENTATION_PORTRAIT
 
     //Lifecycle methods
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        orientation = resources.configuration.orientation
         prefs = prefs()
         migrateSettings()
         applyTelevisionDefaults()
@@ -205,7 +209,9 @@ class MainActivity : AppCompatActivity() {
             val isNetworkAvailable = connectivityManager.isNetworkAvailableCompat()
             if (!isNetworkAvailable) {
                 initialized = true
-                Toast.makeText(this, R.string.no_connection, Toast.LENGTH_SHORT).show()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    Toast.makeText(this, R.string.no_connection, Toast.LENGTH_SHORT).show()
+                }
             }
         }
         lifecycleScope.launch {
@@ -240,7 +246,7 @@ class MainActivity : AppCompatActivity() {
                                 ) {
                                     viewModel.checkUpdates(
                                         prefs.getString(C.NETWORK_LIBRARY, C.OKHTTP),
-                                        prefs.getString(C.UPDATE_URL, null) ?: "https://api.github.com/repos/crackededed/xtra/releases/tags/latest",
+                                        prefs.getString(C.UPDATE_URL, null) ?: "https://api.github.com/repos/crackededed/xtra/releases/tags/api16",
                                         tokenPrefs().getLong(C.UPDATE_LAST_CHECKED, 0)
                                     )
                                 }
@@ -331,7 +337,7 @@ class MainActivity : AppCompatActivity() {
                             .setTitle(getString(R.string.update_available))
                             .setMessage(getString(R.string.update_message))
                             .setPositiveButton(getString(R.string.yes)) { _, _ ->
-                                if (prefs.getBoolean(C.UPDATE_USE_BROWSER, false)) {
+                                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP || prefs.getBoolean(C.UPDATE_USE_BROWSER, false)) {
                                     try {
                                         val intent = Intent(Intent.ACTION_VIEW, it.toUri()).apply {
                                             addCategory(Intent.CATEGORY_BROWSABLE)
@@ -404,34 +410,47 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                lifecycleScope.launch {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            val callback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    lifecycleScope.launch {
+                        viewModel.checkNetworkStatus.value = true
+                    }
+                }
+
+                override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+                    lifecycleScope.launch {
+                        viewModel.checkCellularStatus.value = true
+                    }
+                }
+
+                override fun onLost(network: Network) {
+                    lifecycleScope.launch {
+                        viewModel.checkNetworkStatus.value = true
+                    }
+                }
+            }
+            connectivityManager.registerNetworkCallback(
+                NetworkRequest.Builder().apply {
+                    addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                    }
+                    removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+                }.build(),
+                callback
+            )
+            networkCallback = callback
+        } else {
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) {
                     viewModel.checkNetworkStatus.value = true
                 }
             }
-
-            override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
-                lifecycleScope.launch {
-                    viewModel.checkCellularStatus.value = true
-                }
-            }
-
-            override fun onLost(network: Network) {
-                lifecycleScope.launch {
-                    viewModel.checkNetworkStatus.value = true
-                }
-            }
+            @Suppress("DEPRECATION")
+            registerReceiver(receiver, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
+            networkReceiver = receiver
         }
-        connectivityManager.registerNetworkCallback(
-            NetworkRequest.Builder().apply {
-                addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
-            }.build(),
-            callback
-        )
-        networkCallback = callback
         val pipReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 when (intent?.action) {
@@ -691,31 +710,48 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setNavBarColor(isPortrait: Boolean) {
-        when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
-                window.isNavigationBarContrastEnforced = !isPortrait || !binding.navBarContainer.isVisible
-            }
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O -> {
-                @Suppress("DEPRECATION")
-                window.navigationBarColor = if (isPortrait && binding.navBarContainer.isVisible) {
-                    Color.TRANSPARENT
-                } else {
-                    val isLightTheme = obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.isLightTheme)).use {
-                        it.getBoolean(0, false)
-                    }
-                    ContextCompat.getColor(this, if (!isLightTheme) R.color.darkScrim else R.color.lightScrim)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
+                    window.isNavigationBarContrastEnforced = !isPortrait || !binding.navBarContainer.isVisible
                 }
-            }
-            else -> {
-                val isLightTheme = obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.isLightTheme)).use {
-                    it.getBoolean(0, false)
-                }
-                @Suppress("DEPRECATION")
-                if (!isLightTheme) {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O -> {
+                    @Suppress("DEPRECATION")
                     window.navigationBarColor = if (isPortrait && binding.navBarContainer.isVisible) {
                         Color.TRANSPARENT
                     } else {
-                        ContextCompat.getColor(this, R.color.darkScrim)
+                        val isLightTheme = obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.isLightTheme)).use {
+                            it.getBoolean(0, false)
+                        }
+                        ContextCompat.getColor(this, if (!isLightTheme) R.color.darkScrim else R.color.lightScrim)
+                    }
+                }
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
+                    val isLightTheme = obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.isLightTheme)).use {
+                        it.getBoolean(0, false)
+                    }
+                    @Suppress("DEPRECATION")
+                    if (!isLightTheme) {
+                        window.navigationBarColor = if (isPortrait && binding.navBarContainer.isVisible) {
+                            Color.TRANSPARENT
+                        } else {
+                            ContextCompat.getColor(this, R.color.darkScrim)
+                        }
+                    }
+                }
+                else -> {
+                    val isLightTheme = obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.isLightTheme)).use {
+                        it.getBoolean(0, false)
+                    }
+                    @Suppress("DEPRECATION")
+                    if (!isLightTheme) {
+                        if (isPortrait && binding.navBarContainer.isVisible) {
+                            window.navigationBarColor = Color.TRANSPARENT
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
+                        } else {
+                            window.navigationBarColor = ContextCompat.getColor(this, R.color.darkScrim)
+                            window.addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
+                        }
                     }
                 }
             }
@@ -725,6 +761,7 @@ class MainActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         setNavBarColor(newConfig.orientation == Configuration.ORIENTATION_PORTRAIT)
+        orientation = newConfig.orientation
     }
 
     override fun onResume() {
@@ -733,9 +770,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        networkCallback?.let {
-            val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-            connectivityManager.unregisterNetworkCallback(it)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            networkCallback?.let {
+                val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                connectivityManager.unregisterNetworkCallback(it)
+            }
+        } else {
+            networkReceiver?.let { unregisterReceiver(it) }
         }
         pipActionReceiver?.let { unregisterReceiver(it) }
         if (isFinishing) {
@@ -757,6 +798,17 @@ class MainActivity : AppCompatActivity() {
             },
             ActivityOptions.makeCustomAnimation(this, 0, 0).toBundle()
         )
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            0 -> {
+                if (grantResults.isEmpty() || grantResults.indexOf(PackageManager.PERMISSION_DENIED) != -1) {
+                    Toast.makeText(this, R.string.permission_denied, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     override fun onUserLeaveHint() {
@@ -1209,7 +1261,14 @@ class MainActivity : AppCompatActivity() {
                                 closePlayer()
                             }
                             if (prefs.getBoolean(C.SLEEP_TIMER_LOCK, false)) {
-                                if ((getSystemService(POWER_SERVICE) as PowerManager).isInteractive) {
+                                if ((getSystemService(POWER_SERVICE) as PowerManager).let {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+                                            it.isInteractive
+                                        } else {
+                                            @Suppress("DEPRECATION")
+                                            it.isScreenOn
+                                        }
+                                    }) {
                                     try {
                                         (getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager).lockNow()
                                     } catch (e: SecurityException) {

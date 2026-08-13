@@ -15,7 +15,6 @@ import androidx.annotation.OptIn
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.media3.common.AudioAttributes
-import androidx.media3.common.ForwardingSimpleBasePlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
@@ -39,20 +38,19 @@ import com.github.andreyasadchy.xtra.XtraModule
 import com.github.andreyasadchy.xtra.model.VideoPosition
 import com.github.andreyasadchy.xtra.model.VideoQuality
 import com.github.andreyasadchy.xtra.player.lowlatency.CronetDataSource
+import com.github.andreyasadchy.xtra.player.lowlatency.DefaultHlsPlaylistTracker
 import com.github.andreyasadchy.xtra.player.lowlatency.HttpEngineDataSource
 import com.github.andreyasadchy.xtra.player.lowlatency.OkHttpDataSource
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.player.ExoPlayerService.Companion.MEDIA_PLAYLIST_REGEX
 import com.github.andreyasadchy.xtra.ui.player.ExoPlayerService.Companion.MULTIVARIANT_PLAYLIST_REGEX
 import com.github.andreyasadchy.xtra.util.C
+import com.github.andreyasadchy.xtra.util.NetworkUtils.request
 import com.github.andreyasadchy.xtra.util.prefs
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.runBlocking
 import okhttp3.Credentials
-import org.chromium.net.CronetEngine
-import org.chromium.net.CronetProvider
-import org.chromium.net.QuicOptions
 import org.json.JSONObject
 import java.io.IOException
 import java.net.InetSocketAddress
@@ -99,6 +97,13 @@ class PlaybackService : MediaSessionService() {
             setSeekBackIncrementMs((prefs().getString(C.PLAYER_REWIND, "10")?.toLongOrNull() ?: 10) * 1000)
             setSeekForwardIncrementMs((prefs().getString(C.PLAYER_FORWARD, "10")?.toLongOrNull() ?: 10) * 1000)
         }.build()
+        dynamicsProcessing?.let {
+            it.release()
+            dynamicsProcessing = null
+        }
+        if (prefs().getBoolean(C.PLAYER_AUDIO_COMPRESSOR, false)) {
+            reinitializeDynamicsProcessing(player.audioSessionId)
+        }
         player.addListener(
             object : Player.Listener {
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -138,34 +143,7 @@ class PlaybackService : MediaSessionService() {
         )
         mediaSession = MediaSession.Builder(
             this,
-            object : ForwardingSimpleBasePlayer(player) {
-                override fun getState(): State {
-                    val state = super.getState()
-                    return state
-                        .buildUpon()
-                        .setAvailableCommands(
-                            state.availableCommands.buildUpon()
-                                .add(COMMAND_SEEK_TO_NEXT)
-                                .add(COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
-                                .build()
-                        )
-                        .build()
-                }
-
-                override fun handleSeek(mediaItemIndex: Int, positionMs: Long, seekCommand: Int): ListenableFuture<*> {
-                    return when (seekCommand) {
-                        COMMAND_SEEK_TO_NEXT, COMMAND_SEEK_TO_NEXT_MEDIA_ITEM -> {
-                            player.seekForward()
-                            Futures.immediateVoidFuture()
-                        }
-                        COMMAND_SEEK_TO_PREVIOUS, COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM -> {
-                            player.seekBack()
-                            Futures.immediateVoidFuture()
-                        }
-                        else -> super.handleSeek(mediaItemIndex, positionMs, seekCommand)
-                    }
-                }
-            }
+            player
         ).apply {
             setSessionActivity(
                 PendingIntent.getActivity(
@@ -306,42 +284,7 @@ class PlaybackService : MediaSessionService() {
                                                 networkLibrary == C.CRONET && xtraModule.cronetEngine.value != null -> {
                                                     val proxyMultivariantPlaylist = prefs().getBoolean(C.PROXY_MULTIVARIANT_PLAYLIST, false) && !proxyHost.isNullOrBlank() && proxyPort != null
                                                     val proxyMediaPlaylist = prefs().getBoolean(C.PROXY_MEDIA_PLAYLIST, true) && !proxyHost.isNullOrBlank() && proxyPort != null
-                                                    val proxyClient = if ((proxyMultivariantPlaylist || proxyMediaPlaylist) && CronetProvider.getAllProviders(application).any { it.isEnabled }) {
-                                                        val proxyHeaders = if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                                                            mapOf("Proxy-Authorization" to Base64.encodeToString("$proxyUser:$proxyPassword".toByteArray(), Base64.NO_WRAP)).entries.toList()
-                                                        } else emptyList()
-                                                        val builder = CronetEngine.Builder(application).apply {
-                                                            val userAgent = "Cronet/" + defaultUserAgent.substringAfter("Cronet/", "").substringBefore(')')
-                                                            setUserAgent(userAgent)
-                                                            @QuicOptions.Experimental
-                                                            setQuicOptions(QuicOptions.builder().setHandshakeUserAgent(userAgent).build())
-                                                        }
-                                                        try {
-                                                            @org.chromium.net.ProxyOptions.Experimental
-                                                            builder.setProxyOptions(org.chromium.net.ProxyOptions(
-                                                                listOf(
-                                                                    org.chromium.net.Proxy(
-                                                                        org.chromium.net.Proxy.HTTP,
-                                                                        proxyHost,
-                                                                        proxyPort,
-                                                                        xtraModule.cronetExecutor.value,
-                                                                        object : org.chromium.net.Proxy.Callback() {
-                                                                            override fun onBeforeTunnelRequest(request: Request) {
-                                                                                request.proceed(proxyHeaders)
-                                                                            }
-
-                                                                            override fun onTunnelHeadersReceived(responseHeaders: List<Map.Entry<String?, String?>?>, statusCode: Int): Boolean {
-                                                                                return true
-                                                                            }
-                                                                        }
-                                                                    )
-                                                                )
-                                                            ))
-                                                        } catch (e: UnsupportedOperationException) {
-                                                            null
-                                                        }?.build()
-                                                    } else null
-                                                    val multivariantPlaylistProxyClient = if (proxyMultivariantPlaylist && proxyClient == null) {
+                                                    val multivariantPlaylistProxyClient = if (proxyMultivariantPlaylist) {
                                                         xtraModule.okHttpClient.value.newBuilder().apply {
                                                             proxySelector(
                                                                 object : ProxySelector() {
@@ -365,7 +308,7 @@ class PlaybackService : MediaSessionService() {
                                                             }
                                                         }.build()
                                                     } else null
-                                                    val mediaPlaylistProxyClient = if (proxyMediaPlaylist && proxyClient == null) {
+                                                    val mediaPlaylistProxyClient = if (proxyMediaPlaylist) {
                                                         xtraModule.okHttpClient.value.newBuilder().apply {
                                                             proxySelector(
                                                                 object : ProxySelector() {
@@ -389,7 +332,7 @@ class PlaybackService : MediaSessionService() {
                                                             }
                                                         }.build()
                                                     } else null
-                                                    CronetDataSource.Factory(xtraModule.cronetEngine.value, xtraModule.cronetExecutor.value, proxyMultivariantPlaylist, proxyMediaPlaylist, proxyClient, multivariantPlaylistProxyClient, mediaPlaylistProxyClient) { proxyMediaPlaylist }
+                                                    CronetDataSource.Factory(xtraModule.cronetEngine.value, xtraModule.cronetExecutor.value, multivariantPlaylistProxyClient, mediaPlaylistProxyClient) { proxyMediaPlaylist }
                                                 }
                                                 else -> {
                                                     val multivariantPlaylistProxyClient = if (prefs().getBoolean(C.PROXY_MULTIVARIANT_PLAYLIST, false) && !proxyHost.isNullOrBlank() && proxyPort != null) {
@@ -461,6 +404,7 @@ class PlaybackService : MediaSessionService() {
                                         )
                                     ).apply {
                                         setPlaylistParserFactory(ExoPlayerService.CustomHlsPlaylistParserFactory())
+                                        setPlaylistTrackerFactory(DefaultHlsPlaylistTracker.FACTORY)
                                         setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(6))
                                     }.createMediaSource(
                                         MediaItem.Builder().apply {
@@ -510,7 +454,7 @@ class PlaybackService : MediaSessionService() {
                                                     HttpEngineDataSource.Factory(xtraModule.httpEngine.value, xtraModule.cronetExecutor.value, false, false, null, null, null) { false }
                                                 }
                                                 networkLibrary == C.CRONET && xtraModule.cronetEngine.value != null -> {
-                                                    CronetDataSource.Factory(xtraModule.cronetEngine.value, xtraModule.cronetExecutor.value, false, false, null, null, null) { false }
+                                                    CronetDataSource.Factory(xtraModule.cronetEngine.value, xtraModule.cronetExecutor.value, null, null) { false }
                                                 }
                                                 else -> {
                                                     OkHttpDataSource.Factory(xtraModule.okHttpClient.value, null) { false }
@@ -556,7 +500,7 @@ class PlaybackService : MediaSessionService() {
                                                     HttpEngineDataSource.Factory(xtraModule.httpEngine.value, xtraModule.cronetExecutor.value, false, false, null, null, null) { false }
                                                 }
                                                 networkLibrary == C.CRONET && xtraModule.cronetEngine.value != null -> {
-                                                    CronetDataSource.Factory(xtraModule.cronetEngine.value, xtraModule.cronetExecutor.value, false, false, null, null, null) { false }
+                                                    CronetDataSource.Factory(xtraModule.cronetEngine.value, xtraModule.cronetExecutor.value, null, null) { false }
                                                 }
                                                 else -> {
                                                     OkHttpDataSource.Factory(xtraModule.okHttpClient.value, null) { false }
@@ -646,7 +590,9 @@ class PlaybackService : MediaSessionService() {
                                             Handler(Looper.getMainLooper()).post {
                                                 savePosition()
                                                 mediaSession?.player?.clearMediaItems()
-                                                pauseAllPlayersAndStopSelf()
+                                                mediaSession?.player?.pause()
+                                                mediaSession?.player?.stop()
+                                                stopSelf()
                                             }
                                         }
                                     }
@@ -659,18 +605,8 @@ class PlaybackService : MediaSessionService() {
                             CHECK_ADS -> {
                                 val playlist = (session.player.currentManifest as? HlsManifest)?.mediaPlaylist
                                 val adSegment = playlist?.segments?.lastOrNull()?.let { segment ->
-                                    val segmentStartTime = playlist.startTimeUs + segment.relativeStartTimeUs
                                     listOf("Amazon", "Adform", "DCM").any { segment.title.contains(it) } ||
-                                            playlist.interstitials.find {
-                                                val startTime = it.startDateUnixUs
-                                                val endTime = it.endDateUnixUs.takeIf { it != androidx.media3.common.C.TIME_UNSET }
-                                                    ?: it.durationUs.takeIf { it != androidx.media3.common.C.TIME_UNSET }?.let { startTime + it }
-                                                    ?: it.plannedDurationUs.takeIf { it != androidx.media3.common.C.TIME_UNSET }?.let { startTime + it }
-                                                endTime != null && (it.id.startsWith("stitched-ad-") ||
-                                                        it.clientDefinedAttributes.find { it.name == "CLASS" }?.textValue == "twitch-stitched-ad" ||
-                                                        it.clientDefinedAttributes.find { it.name.startsWith("X-TV-TWITCH-AD-") } != null)
-                                                        && segmentStartTime in startTime..endTime
-                                            } != null
+                                            playlist.tags.lastOrNull() == "ads=true"
                                 } == true
                                 Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle().apply {
                                     putBoolean(RESULT, adSegment)
@@ -682,13 +618,15 @@ class PlaybackService : MediaSessionService() {
                                     val name = variant.format.label?.takeIf { it.isNotBlank() }
                                         ?: playlist.videos.find { it.groupId == variant.videoGroupId }?.name?.takeIf { it.isNotBlank() }
                                     if (name != null) {
-                                        VideoQuality(name, variant.format.codecs, variant.format.bitrate, variant.url.toString())
+                                        VideoQuality(name, variant.format.height, variant.format.frameRate, variant.format.bitrate, variant.format.codecs, variant.url.toString())
                                     } else null
                                 }
                                 Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle().apply {
                                     putStringArray(NAMES, list?.map { it.name.toString() }?.toTypedArray())
-                                    putStringArray(CODECS, list?.map { it.codecs.toString() }?.toTypedArray())
+                                    putStringArray(RESOLUTIONS, list?.map { it.resolution.toString() }?.toTypedArray())
+                                    putStringArray(FRAME_RATES, list?.map { it.frameRate.toString() }?.toTypedArray())
                                     putStringArray(BITRATES, list?.map { it.bitrate.toString() }?.toTypedArray())
+                                    putStringArray(CODECS, list?.map { it.codecs.toString() }?.toTypedArray())
                                     putStringArray(URLS, list?.map { it.url.toString() }?.toTypedArray())
                                 }))
                             }
@@ -704,7 +642,7 @@ class PlaybackService : MediaSessionService() {
                             }
                             GET_MEDIA_PLAYLIST -> {
                                 Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, Bundle().apply {
-                                    putStringArray(RESULT, (session.player.currentManifest as? HlsManifest)?.mediaPlaylist?.tags?.toTypedArray())
+                                    putStringArray(RESULT, (session.player.currentManifest as? HlsManifest)?.mediaPlaylist?.tags?.dropLastWhile { it == "ads=true" }?.toTypedArray())
                                 }))
                             }
                             GET_MULTIVARIANT_PLAYLIST -> {
@@ -789,7 +727,9 @@ class PlaybackService : MediaSessionService() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         savePosition()
         mediaSession?.player?.clearMediaItems()
-        pauseAllPlayersAndStopSelf()
+        mediaSession?.player?.pause()
+        mediaSession?.player?.stop()
+        stopSelf()
     }
 
     override fun onDestroy() {
@@ -826,8 +766,10 @@ class PlaybackService : MediaSessionService() {
         const val USING_PROXY = "usingProxy"
         const val DURATION = "duration"
         const val NAMES = "names"
-        const val CODECS = "codecs"
+        const val RESOLUTIONS = "resolutions"
+        const val FRAME_RATES = "frameRates"
         const val BITRATES = "bitrates"
+        const val CODECS = "codecs"
         const val URLS = "urls"
 
         const val REQUEST_CODE_RESUME = 2

@@ -7,9 +7,11 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.net.http.HttpEngine
+import android.os.Build
 import android.provider.DocumentsContract
 import android.util.JsonReader
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.ViewModel
@@ -34,6 +36,7 @@ import com.github.andreyasadchy.xtra.ui.main.LiveNotificationWorker
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.NetworkUtils
+import com.github.andreyasadchy.xtra.util.NetworkUtils.body
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
 import com.github.andreyasadchy.xtra.util.m3u8.Segment
@@ -98,7 +101,7 @@ class SettingsViewModel(
     fun importDownloads() {
         viewModelScope.launch(Dispatchers.IO) {
             val chatFiles = mutableMapOf<String, String>()
-            applicationContext.getExternalFilesDirs(".downloads").forEach { storage ->
+            ContextCompat.getExternalFilesDirs(applicationContext, ".downloads").forEach { storage ->
                 storage?.absolutePath?.let { directory ->
                     File(directory).listFiles()?.let { files ->
                         files.filter { it.name.endsWith(".json") }.forEach { chatFile ->
@@ -419,33 +422,51 @@ class SettingsViewModel(
 
     fun backupSettings(url: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val documentId = DocumentsContract.getTreeDocumentId(url.toUri())
-            val directoryUri = DocumentsContract.buildDocumentUriUsingTree(url.toUri(), documentId)
-            val preferences = File("${applicationContext.applicationInfo.dataDir}/shared_prefs/${applicationContext.packageName}_preferences.xml")
-            val preferencesUri = directoryUri.toString() + (if (!directoryUri.toString().endsWith("%3A")) "%2F" else "") + preferences.name
-            try {
-                applicationContext.contentResolver.openOutputStream(preferencesUri.toUri())!!
-            } catch (e: IllegalArgumentException) {
-                DocumentsContract.createDocument(applicationContext.contentResolver, directoryUri, "", preferences.name)
-                applicationContext.contentResolver.openOutputStream(preferencesUri.toUri())!!
-            }.use { outputStream ->
-                preferences.inputStream().use { inputStream ->
-                    inputStream.copyTo(outputStream)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val documentId = DocumentsContract.getTreeDocumentId(url.toUri())
+                val directoryUri = DocumentsContract.buildDocumentUriUsingTree(url.toUri(), documentId)
+                val preferences = File("${applicationContext.applicationInfo.dataDir}/shared_prefs/${applicationContext.packageName}_preferences.xml")
+                val preferencesUri = directoryUri.toString() + (if (!directoryUri.toString().endsWith("%3A")) "%2F" else "") + preferences.name
+                try {
+                    applicationContext.contentResolver.openOutputStream(preferencesUri.toUri())!!
+                } catch (e: IllegalArgumentException) {
+                    DocumentsContract.createDocument(applicationContext.contentResolver, directoryUri, "", preferences.name)
+                    applicationContext.contentResolver.openOutputStream(preferencesUri.toUri())!!
+                }.use { outputStream ->
+                    preferences.inputStream().use { inputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
                 }
-            }
-            appDatabase.query(SimpleSQLiteQuery("PRAGMA wal_checkpoint(FULL)")).use {
-                it.moveToPosition(-1)
-            }
-            val database = applicationContext.getDatabasePath("database")
-            val databaseUri = directoryUri.toString() + (if (!directoryUri.toString().endsWith("%3A")) "%2F" else "") + database.name
-            try {
-                applicationContext.contentResolver.openOutputStream(databaseUri.toUri())!!
-            } catch (e: IllegalArgumentException) {
-                DocumentsContract.createDocument(applicationContext.contentResolver, directoryUri, "", database.name)
-                applicationContext.contentResolver.openOutputStream(databaseUri.toUri())!!
-            }.use { outputStream ->
-                database.inputStream().use { inputStream ->
-                    inputStream.copyTo(outputStream)
+                appDatabase.query(SimpleSQLiteQuery("PRAGMA wal_checkpoint(FULL)")).use {
+                    it.moveToPosition(-1)
+                }
+                val database = applicationContext.getDatabasePath("database")
+                val databaseUri = directoryUri.toString() + (if (!directoryUri.toString().endsWith("%3A")) "%2F" else "") + database.name
+                try {
+                    applicationContext.contentResolver.openOutputStream(databaseUri.toUri())!!
+                } catch (e: IllegalArgumentException) {
+                    DocumentsContract.createDocument(applicationContext.contentResolver, directoryUri, "", database.name)
+                    applicationContext.contentResolver.openOutputStream(databaseUri.toUri())!!
+                }.use { outputStream ->
+                    database.inputStream().use { inputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                }
+            } else {
+                val preferences = File("${applicationContext.applicationInfo.dataDir}/shared_prefs/${applicationContext.packageName}_preferences.xml")
+                File(url, preferences.name).outputStream().use { outputStream ->
+                    preferences.inputStream().use { inputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                }
+                appDatabase.query(SimpleSQLiteQuery("PRAGMA wal_checkpoint(FULL)")).use {
+                    it.moveToPosition(-1)
+                }
+                val database = applicationContext.getDatabasePath("database")
+                File(url, database.name).outputStream().use { outputStream ->
+                    database.inputStream().use { inputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
                 }
             }
         }
@@ -453,34 +474,67 @@ class SettingsViewModel(
 
     fun restoreSettings(list: List<String>, networkLibrary: String?, gqlHeaders: Map<String, String>, helixHeaders: Map<String, String>) {
         viewModelScope.launch(Dispatchers.IO) {
-            list.take(2).forEach { url ->
-                if (url.endsWith(".xml")) {
-                    FileOutputStream("${applicationContext.applicationInfo.dataDir}/shared_prefs/${applicationContext.packageName}_preferences.xml").use { outputStream ->
-                        applicationContext.contentResolver.openInputStream(url.toUri())!!.use { inputStream ->
-                            inputStream.copyTo(outputStream)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                list.take(2).forEach { url ->
+                    if (url.endsWith(".xml")) {
+                        FileOutputStream("${applicationContext.applicationInfo.dataDir}/shared_prefs/${applicationContext.packageName}_preferences.xml").use { outputStream ->
+                            applicationContext.contentResolver.openInputStream(url.toUri())!!.use { inputStream ->
+                                inputStream.copyTo(outputStream)
+                            }
                         }
-                    }
-                    val prefs = applicationContext.contentResolver.openInputStream(url.toUri())!!.bufferedReader().use {
-                        it.readText()
-                    }
-                    toggleNotifications(prefs.contains("name=\"${C.LIVE_NOTIFICATIONS_ENABLED}\" value=\"true\""), networkLibrary, gqlHeaders, helixHeaders)
-                    val language = Regex("<string name=\"${C.UI_LANGUAGE}\">(.+?)</string>").find(prefs)?.groups?.get(1)?.value
-                    AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(language.takeIf { it != "auto" }))
-                } else {
-                    val database = applicationContext.getDatabasePath("database")
-                    File(database.parent, "database-shm").delete()
-                    File(database.parent, "database-wal").delete()
-                    database.outputStream().use { outputStream ->
-                        applicationContext.contentResolver.openInputStream(url.toUri())!!.use { inputStream ->
-                            inputStream.copyTo(outputStream)
+                        val prefs = applicationContext.contentResolver.openInputStream(url.toUri())!!.bufferedReader().use {
+                            it.readText()
                         }
-                    }
-                    applicationContext.startActivity(
-                        Intent(applicationContext, MainActivity::class.java).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                        toggleNotifications(prefs.contains("name=\"${C.LIVE_NOTIFICATIONS_ENABLED}\" value=\"true\""), networkLibrary, gqlHeaders, helixHeaders)
+                        val language = Regex("<string name=\"${C.UI_LANGUAGE}\">(.+?)</string>").find(prefs)?.groups?.get(1)?.value
+                        AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(language.takeIf { it != "auto" }))
+                    } else {
+                        val database = applicationContext.getDatabasePath("database")
+                        File(database.parent, "database-shm").delete()
+                        File(database.parent, "database-wal").delete()
+                        database.outputStream().use { outputStream ->
+                            applicationContext.contentResolver.openInputStream(url.toUri())!!.use { inputStream ->
+                                inputStream.copyTo(outputStream)
+                            }
                         }
-                    )
-                    exitProcess(0)
+                        applicationContext.startActivity(
+                            Intent(applicationContext, MainActivity::class.java).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                            }
+                        )
+                        exitProcess(0)
+                    }
+                }
+            } else {
+                list.take(2).forEach { url ->
+                    if (url.endsWith(".xml")) {
+                        FileOutputStream("${applicationContext.applicationInfo.dataDir}/shared_prefs/${applicationContext.packageName}_preferences.xml").use { outputStream ->
+                            FileInputStream(url).use { inputStream ->
+                                inputStream.copyTo(outputStream)
+                            }
+                        }
+                        val prefs = FileInputStream(url).bufferedReader().use {
+                            it.readText()
+                        }
+                        toggleNotifications(prefs.contains("name=\"${C.LIVE_NOTIFICATIONS_ENABLED}\" value=\"true\""), networkLibrary, gqlHeaders, helixHeaders)
+                        val language = Regex("<string name=\"${C.UI_LANGUAGE}\">(.+?)</string>").find(prefs)?.groups?.get(1)?.value
+                        AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(language.takeIf { it != "auto" }))
+                    } else {
+                        val database = applicationContext.getDatabasePath("database")
+                        File(database.parent, "database-shm").delete()
+                        File(database.parent, "database-wal").delete()
+                        database.outputStream().use { outputStream ->
+                            FileInputStream(url).use { inputStream ->
+                                inputStream.copyTo(outputStream)
+                            }
+                        }
+                        applicationContext.startActivity(
+                            Intent(applicationContext, MainActivity::class.java).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                            }
+                        )
+                        exitProcess(0)
+                    }
                 }
             }
         }

@@ -3,14 +3,17 @@ package com.github.andreyasadchy.xtra.ui.view
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Bundle
+import android.os.Build
 import android.util.AttributeSet
 import android.view.View
+import androidx.navigation.findNavController
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.navigation.findNavController
 import com.github.andreyasadchy.xtra.R
+import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
+import com.github.andreyasadchy.xtra.util.getActivity
 import com.github.andreyasadchy.xtra.util.isTelevision
 import com.github.andreyasadchy.xtra.util.prefs
 
@@ -37,11 +40,15 @@ class GridRecyclerView : RecyclerView {
     private val portraitColumns = prefs.getString(C.PORTRAIT_COLUMN_COUNT, "1")!!.toInt()
     private val landscapeColumns = prefs.getString(C.LANDSCAPE_COLUMN_COUNT, "2")!!.toInt()
 
-    private val gridLayoutManager: GridLayoutManager
+    val gridLayoutManager: GridLayoutManager
     private var televisionDestinationKey: String? = null
 
     init {
-        val columns = getColumnsForConfiguration(resources.configuration)
+        val columns = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            if ((context.getActivity() as? MainActivity)?.orientation == 1) portraitColumns else landscapeColumns
+        } else {
+            getColumnsForConfiguration(resources.configuration)
+        }
         gridLayoutManager = GridLayoutManager(context, columns)
         layoutManager = gridLayoutManager
         addItemDecoration(columns)
@@ -66,6 +73,24 @@ class GridRecyclerView : RecyclerView {
         val key = televisionDestinationKey ?: currentTelevisionDestinationKey()
         if (position != NO_POSITION && key != null) {
             televisionFocusPositions[key] = position
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (!material3) {
+            removeItemDecorationAt(0)
+        }
+        val columns = getColumnsForConfiguration(newConfig)
+        gridLayoutManager.spanCount = columns
+        addItemDecoration(columns)
+    }
+
+    fun getColumnsForConfiguration(configuration: Configuration): Int {
+        return if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+            portraitColumns
+        } else {
+            landscapeColumns
         }
     }
 
@@ -109,24 +134,6 @@ class GridRecyclerView : RecyclerView {
                 append('=')
                 append(value)
             }
-        }
-    }
-
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        if (!material3) {
-            removeItemDecorationAt(0)
-        }
-        val columns = getColumnsForConfiguration(newConfig)
-        gridLayoutManager.spanCount = columns
-        addItemDecoration(columns)
-    }
-
-    private fun getColumnsForConfiguration(configuration: Configuration): Int {
-        return if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
-            portraitColumns
-        } else {
-            landscapeColumns
         }
     }
 

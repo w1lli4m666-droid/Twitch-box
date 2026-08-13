@@ -17,8 +17,6 @@ package com.github.andreyasadchy.xtra.player.lowlatency;
 
 import static androidx.media3.common.util.Util.castNonNull;
 import static androidx.media3.datasource.HttpUtil.buildRangeRequestHeader;
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
 import static org.chromium.net.UrlRequest.Builder.REQUEST_PRIORITY_MEDIUM;
 import static java.lang.Math.min;
 
@@ -26,10 +24,10 @@ import android.net.Uri;
 import android.text.TextUtils;
 
 import androidx.annotation.Nullable;
-import androidx.annotation.VisibleForTesting;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaLibraryInfo;
 import androidx.media3.common.PlaybackException;
+import androidx.media3.common.util.Assertions;
 import androidx.media3.common.util.Clock;
 import androidx.media3.common.util.ConditionVariable;
 import androidx.media3.common.util.UnstableApi;
@@ -46,7 +44,6 @@ import androidx.media3.datasource.TransferListener;
 import com.github.andreyasadchy.xtra.ui.player.ExoPlayerService;
 import com.google.common.base.Ascii;
 import com.google.common.base.Predicate;
-import com.google.common.io.ByteStreams;
 import com.google.common.net.HttpHeaders;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.SettableFuture;
@@ -63,8 +60,6 @@ import org.chromium.net.UrlResponseInfo;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
-import java.net.CookieHandler;
-import java.net.CookieManager;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -98,8 +93,6 @@ import okhttp3.ResponseBody;
 @UnstableApi
 public class CronetDataSource extends BaseDataSource implements HttpDataSource {
 
-  private static final String TAG = "CronetDataSource";
-
   static {
     MediaLibraryInfo.registerModule("media3.datasource.cronet");
   }
@@ -122,15 +115,11 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
     private int requestPriority;
     private int connectTimeoutMs;
     private int readTimeoutMs;
-    private int readBufferSize;
     private boolean resetTimeoutOnRedirects;
     private boolean handleSetCookieRequests;
     private boolean keepPostFor302Redirects;
 
-    private final boolean proxyMultivariantPlaylist; // xtra: proxy
-    private final boolean proxyMediaPlaylist;
-    @Nullable private final CronetEngine proxyClient;
-    @Nullable private final Call.Factory multivariantPlaylistProxyClient;
+    @Nullable private final Call.Factory multivariantPlaylistProxyClient; // xtra: proxy
     @Nullable private final Call.Factory mediaPlaylistProxyClient;
     private final Function0<Boolean> getProxyMediaPlaylist;
 
@@ -146,13 +135,10 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
      *     However, to avoid slowing down overall network performance, care must be taken to make
      *     sure response handling is a fast operation when using a direct executor.
      */
-    public Factory(CronetEngine cronetEngine, Executor executor, boolean proxyMultivariantPlaylist, boolean proxyMediaPlaylist, @Nullable CronetEngine proxyClient, @Nullable Call.Factory multivariantPlaylistProxyClient, @Nullable Call.Factory mediaPlaylistProxyClient, Function0<Boolean> getProxyMediaPlaylist) {
-      this.cronetEngine = checkNotNull(cronetEngine);
+    public Factory(CronetEngine cronetEngine, Executor executor, @Nullable Call.Factory multivariantPlaylistProxyClient, @Nullable Call.Factory mediaPlaylistProxyClient, Function0<Boolean> getProxyMediaPlaylist) {
+      this.cronetEngine = Assertions.checkNotNull(cronetEngine);
       this.executor = executor;
-      this.proxyMultivariantPlaylist = proxyMultivariantPlaylist; // xtra: proxy
-      this.proxyMediaPlaylist = proxyMediaPlaylist;
-      this.proxyClient = proxyClient;
-      this.multivariantPlaylistProxyClient = multivariantPlaylistProxyClient;
+      this.multivariantPlaylistProxyClient = multivariantPlaylistProxyClient; // xtra: proxy
       this.mediaPlaylistProxyClient = mediaPlaylistProxyClient;
       this.getProxyMediaPlaylist = getProxyMediaPlaylist;
       defaultRequestProperties = new RequestProperties();
@@ -160,7 +146,6 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
       requestPriority = REQUEST_PRIORITY_MEDIUM;
       connectTimeoutMs = DEFAULT_CONNECT_TIMEOUT_MILLIS;
       readTimeoutMs = DEFAULT_READ_TIMEOUT_MILLIS;
-      readBufferSize = DEFAULT_READ_BUFFER_SIZE_BYTES;
     }
 
     @UnstableApi
@@ -183,6 +168,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
      *     agent of the underlying {@link CronetEngine}.
      * @return This factory.
      */
+    @UnstableApi
     public Factory setUserAgent(@Nullable String userAgent) {
       this.userAgent = userAgent;
       if (internalFallbackFactory != null) {
@@ -322,34 +308,19 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
       return this;
     }
 
-    /**
-     * Sets the read buffer size, in bytes.
-     *
-     * @param readBufferSize The read buffer size, in bytes.
-     * @return This factory.
-     */
-    @UnstableApi
-    public Factory setReadBufferSize(int readBufferSize) {
-      this.readBufferSize = readBufferSize;
-      return this;
-    }
-
     @UnstableApi
     @Override
     public HttpDataSource createDataSource() {
       if (cronetEngine == null) {
         return (fallbackFactory != null)
             ? fallbackFactory.createDataSource()
-            : checkNotNull(internalFallbackFactory).createDataSource();
+            : Assertions.checkNotNull(internalFallbackFactory).createDataSource();
       }
       CronetDataSource dataSource =
           new CronetDataSource(
               cronetEngine,
               executor,
-              proxyMultivariantPlaylist, // xtra: proxy
-              proxyMediaPlaylist,
-              proxyClient,
-              multivariantPlaylistProxyClient,
+              multivariantPlaylistProxyClient, // xtra: proxy
               mediaPlaylistProxyClient,
               getProxyMediaPlaylist,
               requestPriority,
@@ -360,8 +331,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
               userAgent,
               defaultRequestProperties,
               contentTypePredicate,
-              keepPostFor302Redirects,
-              readBufferSize);
+              keepPostFor302Redirects);
       if (transferListener != null) {
         dataSource.addTransferListener(transferListener);
       }
@@ -428,8 +398,10 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
   /** The default read timeout, in milliseconds. */
   @UnstableApi public static final int DEFAULT_READ_TIMEOUT_MILLIS = 8 * 1000;
 
+  /* package */ final UrlRequest.Callback urlRequestCallback;
+
   // The size of read buffer passed to cronet UrlRequest.read().
-  private static final int DEFAULT_READ_BUFFER_SIZE_BYTES = 32 * 1024;
+  private static final int READ_BUFFER_SIZE_BYTES = 32 * 1024;
 
   private final CronetEngine cronetEngine;
   private final Executor executor;
@@ -443,19 +415,17 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
   private final RequestProperties requestProperties;
   private final ConditionVariable operation;
   private final Clock clock;
-  private final int readBufferSize;
 
-  @Nullable private final Predicate<String> contentTypePredicate;
+  @Nullable private Predicate<String> contentTypePredicate;
   private final boolean keepPostFor302Redirects;
 
   // Accessed by the calling thread only.
-  private boolean transferStarted;
+  private boolean opened;
   private long bytesRemaining;
 
   // Written from the calling thread only. currentUrlRequest.start() calls ensure writes are visible
   // to reads made by the Cronet thread.
   @Nullable private UrlRequest currentUrlRequest;
-  @VisibleForTesting @Nullable /* package */ UrlRequestCallback currentUrlRequestCallback;
   @Nullable private DataSpec currentDataSpec;
 
   // Reference written and read by calling thread only. Passed to Cronet thread as a local variable.
@@ -471,10 +441,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
 
   private volatile long currentConnectTimeoutMs;
 
-  private final boolean proxyMultivariantPlaylist; // xtra: proxy
-  private final boolean proxyMediaPlaylist;
-  @Nullable private final CronetEngine proxyClient;
-  @Nullable private final Call.Factory multivariantPlaylistProxyClient;
+  @Nullable private final Call.Factory multivariantPlaylistProxyClient; // xtra: proxy
   @Nullable private final Call.Factory mediaPlaylistProxyClient;
   private final Function0<Boolean> getProxyMediaPlaylist;
   @Nullable private Response response;
@@ -484,10 +451,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
   protected CronetDataSource(
       CronetEngine cronetEngine,
       Executor executor,
-      boolean proxyMultivariantPlaylist, // xtra: proxy
-      boolean proxyMediaPlaylist,
-      @Nullable CronetEngine proxyClient,
-      @Nullable Call.Factory multivariantPlaylistProxyClient,
+      @Nullable Call.Factory multivariantPlaylistProxyClient, // xtra: proxy
       @Nullable Call.Factory mediaPlaylistProxyClient,
       Function0<Boolean> getProxyMediaPlaylist,
       int requestPriority,
@@ -498,15 +462,11 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
       @Nullable String userAgent,
       @Nullable RequestProperties defaultRequestProperties,
       @Nullable Predicate<String> contentTypePredicate,
-      boolean keepPostFor302Redirects,
-      int readBufferSize) {
+      boolean keepPostFor302Redirects) {
     super(/* isNetwork= */ true);
-    this.cronetEngine = checkNotNull(cronetEngine);
-    this.executor = checkNotNull(executor);
-    this.proxyMultivariantPlaylist = proxyMultivariantPlaylist; // xtra: proxy
-    this.proxyMediaPlaylist = proxyMediaPlaylist;
-    this.proxyClient = proxyClient;
-    this.multivariantPlaylistProxyClient = multivariantPlaylistProxyClient;
+    this.cronetEngine = Assertions.checkNotNull(cronetEngine);
+    this.executor = Assertions.checkNotNull(executor);
+    this.multivariantPlaylistProxyClient = multivariantPlaylistProxyClient; // xtra: proxy
     this.mediaPlaylistProxyClient = mediaPlaylistProxyClient;
     this.getProxyMediaPlaylist = getProxyMediaPlaylist;
     this.requestPriority = requestPriority;
@@ -519,7 +479,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
     this.contentTypePredicate = contentTypePredicate;
     this.keepPostFor302Redirects = keepPostFor302Redirects;
     clock = Clock.DEFAULT;
-    this.readBufferSize = readBufferSize;
+    urlRequestCallback = new UrlRequestCallback();
     requestProperties = new RequestProperties();
     operation = new ConditionVariable();
   }
@@ -574,16 +534,16 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
   @UnstableApi
   @Override
   public long open(DataSpec dataSpec) throws HttpDataSourceException {
-    checkNotNull(dataSpec);
-    checkState(!transferStarted);
+    Assertions.checkNotNull(dataSpec);
+    Assertions.checkState(!opened);
 
     operation.close();
     resetConnectTimeout();
     currentDataSpec = dataSpec;
     UrlRequest urlRequest;
     try {
-      createCurrentUrlRequestAndCallback(dataSpec);
-      urlRequest = currentUrlRequest;
+      urlRequest = buildRequestBuilder(dataSpec).build();
+      currentUrlRequest = urlRequest;
     } catch (IOException e) {
       if (e instanceof HttpDataSourceException) {
         throw (HttpDataSourceException) e;
@@ -636,7 +596,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
     }
 
     // Check for a valid response code.
-    UrlResponseInfo responseInfo = checkNotNull(this.responseInfo);
+    UrlResponseInfo responseInfo = Assertions.checkNotNull(this.responseInfo);
     int responseCode = responseInfo.getHttpStatusCode();
     Map<String, List<String>> responseHeaders = responseInfo.getAllHeaders();
     if (responseCode < 200 || responseCode > 299) {
@@ -644,7 +604,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
         long documentSize =
             HttpUtil.getDocumentSize(getFirstHeader(responseHeaders, HttpHeaders.CONTENT_RANGE));
         if (dataSpec.position == documentSize) {
-          transferStarted = true;
+          opened = true;
           transferStarted(dataSpec);
           return dataSpec.length != C.LENGTH_UNSET ? dataSpec.length : 0;
         }
@@ -703,7 +663,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
       bytesRemaining = dataSpec.length;
     }
 
-    transferStarted = true;
+    opened = true;
     transferStarted(dataSpec);
 
     skipFully(bytesToSkip, dataSpec);
@@ -713,7 +673,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
   @UnstableApi
   @Override
   public int read(byte[] buffer, int offset, int length) throws HttpDataSourceException {
-    checkState(transferStarted);
+    Assertions.checkState(opened);
 
     if (length == 0) {
       return 0;
@@ -736,7 +696,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
 
       // The operation didn't time out, fail or finish, and therefore data must have been read.
       readBuffer.flip();
-      checkState(readBuffer.hasRemaining());
+      Assertions.checkState(readBuffer.hasRemaining());
     }
 
     // Ensure we read up to bytesRemaining, in case this was a Range request with finite end, but
@@ -784,7 +744,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
    */
   @UnstableApi
   public int read(ByteBuffer buffer) throws HttpDataSourceException {
-    checkState(transferStarted);
+    Assertions.checkState(opened);
 
     if (!buffer.isDirect()) {
       throw new IllegalArgumentException("Passed buffer is not a direct ByteBuffer");
@@ -818,7 +778,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
     }
 
     // The operation didn't time out, fail or finish, and therefore data must have been read.
-    checkState(readLength > buffer.remaining());
+    Assertions.checkState(readLength > buffer.remaining());
     int bytesRead = readLength - buffer.remaining();
     if (bytesRemaining != C.LENGTH_UNSET) {
       bytesRemaining -= bytesRead;
@@ -830,7 +790,10 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
   @UnstableApi
   @Override
   public synchronized void close() {
-    closeCurrentUrlRequestAndCallback();
+    if (currentUrlRequest != null) {
+      currentUrlRequest.cancel();
+      currentUrlRequest = null;
+    }
     if (readBuffer != null) {
       readBuffer.limit(0);
     }
@@ -838,24 +801,12 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
     responseInfo = null;
     exception = null;
     finished = false;
-    if (transferStarted) {
-      transferStarted = false;
+    if (opened) {
+      opened = false;
       transferEnded();
       closeConnectionQuietly(); // xtra: proxy
     }
     response = null; // xtra: proxy
-  }
-
-  private void closeCurrentUrlRequestAndCallback() {
-    if (currentUrlRequest != null) {
-      currentUrlRequest.cancel();
-      currentUrlRequest = null;
-    }
-
-    if (currentUrlRequestCallback != null) {
-      currentUrlRequestCallback.close();
-      currentUrlRequestCallback = null;
-    }
   }
 
   /** Returns current {@link UrlRequest}. May be null if the data source is not opened. */
@@ -872,33 +823,11 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
     return responseInfo;
   }
 
-  // The nullness checker can't prove that UrlRequest.Builder.build() doesn't null out
-  // this.currentUrlRequestCallback.
-  // TODO: Add @SideEffectFree to the UrlRequest.Builder.build() stub
-  @SuppressWarnings("nullness:contracts.postcondition.not.satisfied")
-  private void createCurrentUrlRequestAndCallback(DataSpec dataSpec) throws IOException {
-    currentUrlRequestCallback = new UrlRequestCallback();
-    currentUrlRequest = buildRequestBuilder(dataSpec).build();
-  }
-
-  /**
-   * Returns {@link UrlRequest.Builder} from dataSpec. Would not work if data source is not opened.
-   */
   @UnstableApi
   protected UrlRequest.Builder buildRequestBuilder(DataSpec dataSpec) throws IOException {
-    CronetEngine cronetEngine; // xtra: proxy
-    String host = dataSpec.uri.getHost();
-    if (proxyClient != null && host != null &&
-            ((proxyMultivariantPlaylist && host.matches(ExoPlayerService.MULTIVARIANT_PLAYLIST_REGEX)) ||
-                    (proxyMediaPlaylist && host.matches(ExoPlayerService.MEDIA_PLAYLIST_REGEX) && getProxyMediaPlaylist.invoke()))
-    ) {
-      cronetEngine = proxyClient;
-    } else {
-      cronetEngine = this.cronetEngine;
-    }
     UrlRequest.Builder requestBuilder =
         cronetEngine
-            .newUrlRequestBuilder(dataSpec.uri.toString(), currentUrlRequestCallback, executor)
+            .newUrlRequestBuilder(dataSpec.uri.toString(), urlRequestCallback, executor)
             .setPriority(requestPriority)
             .allowDirectExecutor();
 
@@ -998,8 +927,8 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
         } else {
           // The operation didn't time out, fail or finish, and therefore data must have been read.
           readBuffer.flip();
-          checkState(readBuffer.hasRemaining());
-          int bytesSkipped = (int) Math.min(readBuffer.remaining(), bytesToSkip);
+          Assertions.checkState(readBuffer.hasRemaining());
+          int bytesSkipped = (int) min(readBuffer.remaining(), bytesToSkip);
           readBuffer.position(readBuffer.position() + bytesSkipped);
           bytesToSkip -= bytesSkipped;
         }
@@ -1103,7 +1032,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
 
   private ByteBuffer getOrCreateReadBuffer() {
     if (readBuffer == null) {
-      readBuffer = ByteBuffer.allocateDirect(readBufferSize);
+      readBuffer = ByteBuffer.allocateDirect(READ_BUFFER_SIZE_BYTES);
       readBuffer.limit(0);
     }
     return readBuffer;
@@ -1116,6 +1045,21 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
       }
     }
     return false;
+  }
+
+  @Nullable
+  private static String parseCookies(@Nullable List<String> setCookieHeaders) {
+    if (setCookieHeaders == null || setCookieHeaders.isEmpty()) {
+      return null;
+    }
+    return TextUtils.join(";", setCookieHeaders);
+  }
+
+  private static void attachCookies(UrlRequest.Builder requestBuilder, @Nullable String cookies) {
+    if (TextUtils.isEmpty(cookies)) {
+      return;
+    }
+    requestBuilder.addHeader(HttpHeaders.COOKIE, cookies);
   }
 
   private static int getStatus(UrlRequest request) throws InterruptedException {
@@ -1142,7 +1086,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
   // Copy as much as possible from the src buffer into dst buffer.
   // Returns the number of bytes copied.
   private static int copyByteBuffer(ByteBuffer src, ByteBuffer dst) {
-    int remaining = Math.min(src.remaining(), dst.remaining());
+    int remaining = min(src.remaining(), dst.remaining());
     int limit = src.limit();
     src.limit(src.position() + remaining);
     dst.put(src);
@@ -1162,7 +1106,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
     try {
       this.response = executeCall(call);
       response = this.response;
-      responseBody = checkNotNull(response.body());
+      responseBody = Assertions.checkNotNull(response.body());
       responseByteStream = responseBody.byteStream();
     } catch (IOException e) {
       throw HttpDataSourceException.createForIOException(
@@ -1177,7 +1121,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
         long documentSize =
             HttpUtil.getDocumentSize(response.headers().get(HttpHeaders.CONTENT_RANGE));
         if (dataSpec.position == documentSize) {
-          transferStarted = true;
+          opened = true;
           transferStarted(dataSpec);
           return dataSpec.length != C.LENGTH_UNSET ? dataSpec.length : 0;
         }
@@ -1185,7 +1129,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
 
       byte[] errorResponseBody;
       try {
-        errorResponseBody = ByteStreams.toByteArray(checkNotNull(responseByteStream));
+        errorResponseBody = Util.toByteArray(Assertions.checkNotNull(responseByteStream));
       } catch (IOException e) {
         errorResponseBody = Util.EMPTY_BYTE_ARRAY;
       }
@@ -1221,7 +1165,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
       bytesRemaining = contentLength != -1 ? (contentLength - bytesToSkip) : C.LENGTH_UNSET;
     }
 
-    transferStarted = true;
+    opened = true;
     transferStarted(dataSpec);
 
     try {
@@ -1274,10 +1218,10 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
 
     @Nullable RequestBody requestBody = null;
     if (dataSpec.httpBody != null) {
-      requestBody = RequestBody.create(dataSpec.httpBody);
+      requestBody = RequestBody.create(null, dataSpec.httpBody);
     } else if (dataSpec.httpMethod == DataSpec.HTTP_METHOD_POST) {
       // OkHttp requires a non-null body for POST requests.
-      requestBody = RequestBody.create(Util.EMPTY_BYTE_ARRAY);
+      requestBody = RequestBody.create(null, Util.EMPTY_BYTE_ARRAY);
     }
     builder.method(dataSpec.getHttpMethodString(), requestBody);
     return builder.build();
@@ -1310,29 +1254,22 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
 
   private void closeConnectionQuietly() {
     if (response != null) {
-      checkNotNull(response.body()).close();
+      Assertions.checkNotNull(response.body()).close();
+      response = null;
     }
     responseByteStream = null;
   }
 
-  @VisibleForTesting
-  /* package */ final class UrlRequestCallback extends UrlRequest.Callback {
-
-    private volatile boolean isClosed = false;
-
-    public void close() {
-      this.isClosed = true;
-    }
+  private final class UrlRequestCallback extends UrlRequest.Callback {
 
     @Override
     public synchronized void onRedirectReceived(
         UrlRequest request, UrlResponseInfo info, String newLocationUrl) {
-      if (isClosed) {
+      if (request != currentUrlRequest) {
         return;
       }
-      checkNotNull(currentUrlRequest);
-      checkNotNull(currentUrlRequestCallback);
-      DataSpec dataSpec = checkNotNull(currentDataSpec);
+      UrlRequest urlRequest = Assertions.checkNotNull(currentUrlRequest);
+      DataSpec dataSpec = Assertions.checkNotNull(currentDataSpec);
       int responseCode = info.getHttpStatusCode();
       if (dataSpec.httpMethod == DataSpec.HTTP_METHOD_POST) {
         // The industry standard is to disregard POST redirects when the status code is 307 or 308.
@@ -1353,18 +1290,6 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
         resetConnectTimeout();
       }
 
-      CookieHandler cookieHandler = CookieHandler.getDefault();
-      if (cookieHandler == null && handleSetCookieRequests) {
-        // A temporary CookieManager is created for the duration of this request - this guarantees
-        // redirects preserve the cookies correctly.
-        cookieHandler = new CookieManager();
-      }
-
-      String url = info.getUrl();
-      Map<String, List<String>> headers = info.getAllHeaders();
-      HttpUtil.storeCookiesFromHeaders(url, headers, cookieHandler);
-      String cookieHeaders = HttpUtil.getCookieHeader(url, headers, cookieHandler);
-
       boolean shouldKeepPost =
           keepPostFor302Redirects
               && dataSpec.httpMethod == DataSpec.HTTP_METHOD_POST
@@ -1372,14 +1297,19 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
 
       // request.followRedirect() transforms a POST request into a GET request, so if we want to
       // keep it as a POST we need to fall through to the manual redirect logic below.
-      if (!shouldKeepPost) {
-        // No cookies, or we're not handling them - so just follow the redirect.
-        if (!handleSetCookieRequests || TextUtils.isEmpty(cookieHeaders)) {
-          request.followRedirect();
-          return;
-        }
+      if (!shouldKeepPost && !handleSetCookieRequests) {
+        request.followRedirect();
+        return;
       }
 
+      @Nullable
+      String cookieHeadersValue = parseCookies(info.getAllHeaders().get(HttpHeaders.SET_COOKIE));
+      if (!shouldKeepPost && TextUtils.isEmpty(cookieHeadersValue)) {
+        request.followRedirect();
+        return;
+      }
+
+      urlRequest.cancel();
       DataSpec redirectUrlDataSpec;
       if (!shouldKeepPost && dataSpec.httpMethod == DataSpec.HTTP_METHOD_POST) {
         // For POST redirects that aren't 307 or 308, the redirect is followed but request is
@@ -1394,33 +1324,23 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
       } else {
         redirectUrlDataSpec = dataSpec.withUri(Uri.parse(newLocationUrl));
       }
-
-      if (!TextUtils.isEmpty(cookieHeaders)) {
-        Map<String, String> requestHeaders = new HashMap<>();
-        requestHeaders.putAll(dataSpec.httpRequestHeaders);
-        requestHeaders.put(HttpHeaders.COOKIE, cookieHeaders);
-        redirectUrlDataSpec =
-            redirectUrlDataSpec.buildUpon().setHttpRequestHeaders(requestHeaders).build();
-      }
-
-      closeCurrentUrlRequestAndCallback();
+      UrlRequest.Builder requestBuilder;
       try {
-        createCurrentUrlRequestAndCallback(redirectUrlDataSpec);
+        requestBuilder = buildRequestBuilder(redirectUrlDataSpec);
       } catch (IOException e) {
         exception = e;
         return;
       }
-
+      attachCookies(requestBuilder, cookieHeadersValue);
+      currentUrlRequest = requestBuilder.build();
       currentUrlRequest.start();
     }
 
     @Override
     public synchronized void onResponseStarted(UrlRequest request, UrlResponseInfo info) {
-      if (isClosed) {
+      if (request != currentUrlRequest) {
         return;
       }
-      HttpUtil.storeCookiesFromHeaders(
-          info.getUrl(), info.getAllHeaders(), CookieHandler.getDefault());
       responseInfo = info;
       operation.open();
     }
@@ -1428,7 +1348,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
     @Override
     public synchronized void onReadCompleted(
         UrlRequest request, UrlResponseInfo info, ByteBuffer buffer) {
-      if (isClosed) {
+      if (request != currentUrlRequest) {
         return;
       }
       operation.open();
@@ -1436,7 +1356,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
 
     @Override
     public synchronized void onSucceeded(UrlRequest request, UrlResponseInfo info) {
-      if (isClosed) {
+      if (request != currentUrlRequest) {
         return;
       }
       finished = true;
@@ -1446,7 +1366,7 @@ public class CronetDataSource extends BaseDataSource implements HttpDataSource {
     @Override
     public synchronized void onFailed(
         UrlRequest request, UrlResponseInfo info, CronetException error) {
-      if (isClosed) {
+      if (request != currentUrlRequest) {
         return;
       }
       if (error instanceof NetworkException

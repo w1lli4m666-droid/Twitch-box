@@ -4,12 +4,12 @@
   <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="144" alt="Twitch-box app icon">
 </p>
 
-Twitch-box is an Android TV-oriented Twitch browser and player based on [Xtra](https://github.com/crackededed/Xtra). The installed application is named **Twitch**. It is designed for TV remotes, supports Android 5.0 and later, and lets you follow channels locally without signing in to a Twitch account.
+Twitch-box is an Android TV-oriented Twitch browser and player based on [Xtra](https://github.com/crackededed/Xtra). The installed application is named **Twitch**. It is designed for TV remotes, supports Android 4.1 and later, and lets you follow channels locally without signing in to a Twitch account.
 
 ## Features
 
 - Android TV launcher support, including a TV banner and remote-friendly focus indicators.
-- Compatible with Android 5.0 (API 21) and later.
+- Compatible with Android 4.1 (API 16) and later. Android 4.0 is not supported.
 - Browse categories, popular streams, followed channels, videos, and saved content.
 - Follow channels locally without a Twitch account.
 - Optional Twitch device-code sign-in.
@@ -27,9 +27,9 @@ Download the latest APKs from the [GitHub Releases page](https://github.com/w1ll
 
 | APK | Recommended for |
 | --- | --- |
-| `Twitch-box-v2.58.5.6-armeabi-v7a.apk` | 32-bit ARM TV boxes and older Android devices |
-| `Twitch-box-v2.58.5.6-arm64-v8a.apk` | 64-bit ARM Android TV devices |
-| `Twitch-box-v2.58.5.6-universal.apk` | ARM devices where the architecture is unknown; includes both ARMv7 and ARM64 libraries |
+| `Twitch-box-v2.58.6.1-armeabi-v7a.apk` | 32-bit ARM TV boxes, including Android 4.1–4.4 devices |
+| `Twitch-box-v2.58.6.1-arm64-v8a.apk` | 64-bit ARM Android TV devices (Android 5.0 or newer) |
+| `Twitch-box-v2.58.6.1-universal.apk` | ARM devices where the architecture is unknown; includes ARMv7 and ARM64 libraries only |
 
 ## Remote control guide
 
@@ -84,7 +84,7 @@ On Linux or macOS:
 ./gradlew assembleRelease
 ```
 
-The build produces separate `armeabi-v7a`, `arm64-v8a`, and universal APKs under `app/build/outputs/apk/release/`.
+The build produces separate `armeabi-v7a`, `arm64-v8a`, and ARM-only universal APKs under `app/build/outputs/apk/release/`. The `armeabi-v7a` APK is the correct choice for Android 4.1–4.4 TV boxes.
 
 ## License
 

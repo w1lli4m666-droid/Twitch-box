@@ -1,5 +1,4 @@
 package com.github.andreyasadchy.xtra.ui.download
-import com.github.andreyasadchy.xtra.util.isActiveNetworkCellularCompat
 
 import android.annotation.SuppressLint
 import android.app.Notification
@@ -9,6 +8,7 @@ import android.app.PendingIntent
 import android.content.ContentResolver
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.drawable.Icon
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Binder
@@ -19,6 +19,7 @@ import android.util.Base64
 import android.util.JsonReader
 import android.util.JsonToken
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.LifecycleService
@@ -35,6 +36,7 @@ import com.github.andreyasadchy.xtra.model.ui.OfflineVideo
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.NetworkUtils
+import com.github.andreyasadchy.xtra.util.NetworkUtils.body
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.m3u8.MediaPlaylist
@@ -152,8 +154,13 @@ class VideoDownloadService : LifecycleService() {
                                 OfflineVideo.STATUS_DOWNLOADED
                             } else {
                                 val waitForWifi = if (prefs().getBoolean(C.DOWNLOAD_WIFI_ONLY, false)) {
-                                    val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                                    connectivityManager.isActiveNetworkCellularCompat()
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                        val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                                        val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
+                                        networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                                    } else {
+                                        false
+                                    }
                                 } else false
                                 if (waitForWifi) {
                                     OfflineVideo.STATUS_WAITING_FOR_WIFI
@@ -179,7 +186,9 @@ class VideoDownloadService : LifecycleService() {
                                 setContentTitle(ContextCompat.getString(this@VideoDownloadService, R.string.downloaded))
                                 setContentText(offlineVideo.name)
                                 setSmallIcon(android.R.drawable.stat_sys_download_done)
-                                setGroup(GROUP_KEY)
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+                                    setGroup(GROUP_KEY)
+                                }
                                 setAutoCancel(true)
                                 setContentIntent(
                                     PendingIntent.getActivity(
@@ -1797,33 +1806,154 @@ class VideoDownloadService : LifecycleService() {
     }
 
     private fun sendNotification(offlineVideo: OfflineVideo, downloadProgress: DownloadProgress, paused: Boolean = false) {
-        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, getString(R.string.notification_downloads_channel_id))
+        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Notification.Builder(this, getString(R.string.notification_downloads_channel_id))
+            } else {
+                @Suppress("DEPRECATION")
+                Notification.Builder(this)
+            }.apply {
+                setContentTitle(ContextCompat.getString(this@VideoDownloadService, R.string.downloading))
+                setContentText(offlineVideo.name)
+                setSmallIcon(android.R.drawable.stat_sys_download)
+                setGroup(GROUP_KEY)
+                setOngoing(true)
+                setOnlyAlertOnce(true)
+                setProgress(downloadProgress.maxProgress, downloadProgress.progress, false)
+                setContentIntent(
+                    PendingIntent.getActivity(
+                        this@VideoDownloadService,
+                        offlineVideo.id,
+                        Intent(this@VideoDownloadService, MainActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                            action = MainActivity.INTENT_OPEN_DOWNLOADS_TAB
+                        },
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                    )
+                )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (paused) {
+                        addAction(
+                            Notification.Action.Builder(
+                                Icon.createWithResource(this@VideoDownloadService, R.drawable.baseline_play_arrow_black_48),
+                                ContextCompat.getString(this@VideoDownloadService, R.string.resume),
+                                PendingIntent.getService(
+                                    this@VideoDownloadService,
+                                    REQUEST_CODE_RESUME,
+                                    Intent(this@VideoDownloadService, VideoDownloadService::class.java).apply {
+                                        action = INTENT_RESUME
+                                        putExtra(KEY_VIDEO_ID, offlineVideo.id)
+                                    },
+                                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                                )
+                            ).build()
+                        )
+                    } else {
+                        addAction(
+                            Notification.Action.Builder(
+                                Icon.createWithResource(this@VideoDownloadService, R.drawable.baseline_pause_black_48),
+                                ContextCompat.getString(this@VideoDownloadService, R.string.pause),
+                                PendingIntent.getService(
+                                    this@VideoDownloadService,
+                                    REQUEST_CODE_PAUSE,
+                                    Intent(this@VideoDownloadService, VideoDownloadService::class.java).apply {
+                                        action = INTENT_PAUSE
+                                        putExtra(KEY_VIDEO_ID, offlineVideo.id)
+                                    },
+                                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                                )
+                            ).build()
+                        )
+                    }
+                    addAction(
+                        Notification.Action.Builder(
+                            Icon.createWithResource(this@VideoDownloadService, android.R.drawable.ic_delete),
+                            ContextCompat.getString(this@VideoDownloadService, R.string.stop),
+                            PendingIntent.getService(
+                                this@VideoDownloadService,
+                                REQUEST_CODE_STOP,
+                                Intent(this@VideoDownloadService, VideoDownloadService::class.java).apply {
+                                    action = INTENT_STOP
+                                    putExtra(KEY_VIDEO_ID, offlineVideo.id)
+                                },
+                                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                            )
+                        ).build()
+                    )
+                } else @Suppress("DEPRECATION") {
+                    if (paused) {
+                        addAction(
+                            Notification.Action.Builder(
+                                R.drawable.baseline_play_arrow_black_48,
+                                ContextCompat.getString(this@VideoDownloadService, R.string.resume),
+                                PendingIntent.getService(
+                                    this@VideoDownloadService,
+                                    REQUEST_CODE_RESUME,
+                                    Intent(this@VideoDownloadService, VideoDownloadService::class.java).apply {
+                                        action = INTENT_RESUME
+                                        putExtra(KEY_VIDEO_ID, offlineVideo.id)
+                                    },
+                                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                                )
+                            ).build()
+                        )
+                    } else {
+                        addAction(
+                            Notification.Action.Builder(
+                                R.drawable.baseline_pause_black_48,
+                                ContextCompat.getString(this@VideoDownloadService, R.string.pause),
+                                PendingIntent.getService(
+                                    this@VideoDownloadService,
+                                    REQUEST_CODE_PAUSE,
+                                    Intent(this@VideoDownloadService, VideoDownloadService::class.java).apply {
+                                        action = INTENT_PAUSE
+                                        putExtra(KEY_VIDEO_ID, offlineVideo.id)
+                                    },
+                                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                                )
+                            ).build()
+                        )
+                    }
+                    addAction(
+                        Notification.Action.Builder(
+                            android.R.drawable.ic_delete,
+                            ContextCompat.getString(this@VideoDownloadService, R.string.stop),
+                            PendingIntent.getService(
+                                this@VideoDownloadService,
+                                REQUEST_CODE_STOP,
+                                Intent(this@VideoDownloadService, VideoDownloadService::class.java).apply {
+                                    action = INTENT_STOP
+                                    putExtra(KEY_VIDEO_ID, offlineVideo.id)
+                                },
+                                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                            )
+                        ).build()
+                    )
+                }
+            }.build()
         } else {
             @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        }.apply {
-            setContentTitle(ContextCompat.getString(this@VideoDownloadService, R.string.downloading))
-            setContentText(offlineVideo.name)
-            setSmallIcon(android.R.drawable.stat_sys_download)
-            setGroup(GROUP_KEY)
-            setOngoing(true)
-            setOnlyAlertOnce(true)
-            setProgress(downloadProgress.maxProgress, downloadProgress.progress, false)
-            setContentIntent(
-                PendingIntent.getActivity(
-                    this@VideoDownloadService,
-                    offlineVideo.id,
-                    Intent(this@VideoDownloadService, MainActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
-                        action = MainActivity.INTENT_OPEN_DOWNLOADS_TAB
-                    },
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            NotificationCompat.Builder(this).apply {
+                setContentTitle(ContextCompat.getString(this@VideoDownloadService, R.string.downloading))
+                setContentText(offlineVideo.name)
+                setSmallIcon(android.R.drawable.stat_sys_download)
+                setGroup(GROUP_KEY)
+                setOngoing(true)
+                setOnlyAlertOnce(true)
+                setProgress(downloadProgress.maxProgress, downloadProgress.progress, false)
+                setContentIntent(
+                    PendingIntent.getActivity(
+                        this@VideoDownloadService,
+                        offlineVideo.id,
+                        Intent(this@VideoDownloadService, MainActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                            action = MainActivity.INTENT_OPEN_DOWNLOADS_TAB
+                        },
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                    )
                 )
-            )
-            if (paused) {
-                addAction(
-                    Notification.Action.Builder(
+                if (paused) {
+                    addAction(
                         R.drawable.baseline_play_arrow_black_48,
                         ContextCompat.getString(this@VideoDownloadService, R.string.resume),
                         PendingIntent.getService(
@@ -1835,11 +1965,9 @@ class VideoDownloadService : LifecycleService() {
                             },
                             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                         )
-                    ).build()
-                )
-            } else {
-                addAction(
-                    Notification.Action.Builder(
+                    )
+                } else {
+                    addAction(
                         R.drawable.baseline_pause_black_48,
                         ContextCompat.getString(this@VideoDownloadService, R.string.pause),
                         PendingIntent.getService(
@@ -1851,11 +1979,9 @@ class VideoDownloadService : LifecycleService() {
                             },
                             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                         )
-                    ).build()
-                )
-            }
-            addAction(
-                Notification.Action.Builder(
+                    )
+                }
+                addAction(
                     android.R.drawable.ic_delete,
                     ContextCompat.getString(this@VideoDownloadService, R.string.stop),
                     PendingIntent.getService(
@@ -1867,9 +1993,9 @@ class VideoDownloadService : LifecycleService() {
                         },
                         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                     )
-                ).build()
-            )
-        }.build()
+                )
+            }.build()
+        }
         if (downloadProgress == activeDownloads.firstOrNull()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 startForeground(offlineVideo.id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)

@@ -212,7 +212,7 @@ class PlayerSettingsDialog : BottomSheetDialogFragment() {
                     dismiss()
                 }
             }
-            if (requireContext().prefs().getBoolean(C.CHAT_TRANSLATE, false) && Build.SUPPORTED_64_BIT_ABIS.firstOrNull() == "arm64-v8a") {
+            if (requireContext().prefs().getBoolean(C.CHAT_TRANSLATE, false) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && Build.SUPPORTED_64_BIT_ABIS.firstOrNull() == "arm64-v8a") {
                 val translateAll = (parentFragment as? Media3PlayerFragment)?.getTranslateAllMessages() ?: (parentFragment as? PlayerFragment)?.getTranslateAllMessages()
                 if (translateAll != null) {
                     menuTranslateAll.visibility = View.VISIBLE

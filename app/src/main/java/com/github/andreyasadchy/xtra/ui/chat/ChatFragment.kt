@@ -31,12 +31,9 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.adapter.FragmentStateAdapter
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import coil3.request.target
-import coil3.request.transformations
-import coil3.transform.CircleCropTransformation
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.FragmentChatBinding
 import com.github.andreyasadchy.xtra.model.chat.ChatMessage
@@ -436,16 +433,16 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                                         } else {
                                             raidLayout.visibility = View.VISIBLE
                                             raidLayout.setOnClickListener { viewModel.raidClicked.value = raid }
-                                            requireContext().imageLoader.enqueue(
-                                                ImageRequest.Builder(requireContext()).apply {
-                                                    data(raid.targetImage)
+                                            Glide.with(this@ChatFragment)
+                                                .load(raid.targetImage)
+                                                .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                                                .transition(DrawableTransitionOptions.withCrossFade())
+                                                .apply {
                                                     if (requireContext().prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true)) {
-                                                        transformations(CircleCropTransformation())
+                                                        circleCrop()
                                                     }
-                                                    crossfade(true)
-                                                    target(raidImage)
-                                                }.build()
-                                            )
+                                                }
+                                                .into(raidImage)
                                             raidClose.setOnClickListener {
                                                 raidLayout.visibility = View.GONE
                                                 viewModel.raidClosed = true
@@ -771,7 +768,7 @@ class ChatFragment : BaseNetworkFragment(), MessageClickedDialog.OnButtonClickLi
                             }
                         }
                     }
-                    if (requireContext().prefs().getBoolean(C.CHAT_TRANSLATE, false) && channelId != null && Build.SUPPORTED_64_BIT_ABIS.firstOrNull() == "arm64-v8a") {
+                    if (requireContext().prefs().getBoolean(C.CHAT_TRANSLATE, false) && channelId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && Build.SUPPORTED_64_BIT_ABIS.firstOrNull() == "arm64-v8a") {
                         viewLifecycleOwner.lifecycleScope.launch {
                             repeatOnLifecycle(Lifecycle.State.STARTED) {
                                 viewModel.translateAllMessages.collectLatest {

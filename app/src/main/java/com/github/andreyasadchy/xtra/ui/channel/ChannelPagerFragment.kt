@@ -37,12 +37,9 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import coil3.request.target
-import coil3.request.transformations
-import coil3.transform.CircleCropTransformation
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.FragmentChannelBinding
 import com.github.andreyasadchy.xtra.model.ui.Stream
@@ -96,6 +93,9 @@ class ChannelPagerFragment : BaseNetworkFragment(), Scrollable, FragmentHost, In
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentChannelBinding.inflate(inflater, container, false)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR2) {
+            binding.sortBar.root.visibility = View.VISIBLE
+        }
         return binding.root
     }
 
@@ -110,8 +110,14 @@ class ChannelPagerFragment : BaseNetworkFragment(), Scrollable, FragmentHost, In
         }
         with(binding) {
             val activity = requireActivity() as MainActivity
-            if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                appBar.setExpanded(false, false)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                    appBar.setExpanded(false, false)
+                }
+            } else {
+                if (activity.orientation == 2) {
+                    appBar.setExpanded(false, false)
+                }
             }
             if (viewModel.stream.value == null) {
                 watchLive.setOnClickListener {
@@ -147,16 +153,16 @@ class ChannelPagerFragment : BaseNetworkFragment(), Scrollable, FragmentHost, In
                 if (it != null) {
                     userLayout.visibility = View.VISIBLE
                     userImage.visibility = View.VISIBLE
-                    requireContext().imageLoader.enqueue(
-                        ImageRequest.Builder(requireContext()).apply {
-                            data(it)
+                    Glide.with(this@ChannelPagerFragment)
+                        .load(it)
+                        .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                        .transition(DrawableTransitionOptions.withCrossFade())
+                        .apply {
                             if (requireContext().prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true)) {
-                                transformations(CircleCropTransformation())
+                                circleCrop()
                             }
-                            crossfade(true)
-                            target(userImage)
-                        }.build()
-                    )
+                        }
+                        .into(userImage)
                 } else {
                     userImage.visibility = View.GONE
                 }
@@ -575,16 +581,16 @@ class ChannelPagerFragment : BaseNetworkFragment(), Scrollable, FragmentHost, In
                 if (it != null) {
                     userLayout.visibility = View.VISIBLE
                     userImage.visibility = View.VISIBLE
-                    requireContext().imageLoader.enqueue(
-                        ImageRequest.Builder(requireContext()).apply {
-                            data(it)
+                    Glide.with(this@ChannelPagerFragment)
+                        .load(it)
+                        .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                        .transition(DrawableTransitionOptions.withCrossFade())
+                        .apply {
                             if (requireContext().prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true)) {
-                                transformations(CircleCropTransformation())
+                                circleCrop()
                             }
-                            crossfade(true)
-                            target(userImage)
-                        }.build()
-                    )
+                        }
+                        .into(userImage)
                     requireArguments().putString(C.CHANNEL_IMAGE, it)
                 } else {
                     userImage.visibility = View.GONE
@@ -699,27 +705,25 @@ class ChannelPagerFragment : BaseNetworkFragment(), Scrollable, FragmentHost, In
             if (!userImage.isVisible && user.profileImage != null) {
                 userLayout.visibility = View.VISIBLE
                 userImage.visibility = View.VISIBLE
-                requireContext().imageLoader.enqueue(
-                    ImageRequest.Builder(requireContext()).apply {
-                        data(user.profileImage)
+                Glide.with(this@ChannelPagerFragment)
+                    .load(user.profileImage)
+                    .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                    .transition(DrawableTransitionOptions.withCrossFade())
+                    .apply {
                         if (requireContext().prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true)) {
-                            transformations(CircleCropTransformation())
+                            circleCrop()
                         }
-                        crossfade(true)
-                        target(userImage)
-                    }.build()
-                )
+                    }
+                    .into(userImage)
                 requireArguments().putString(C.CHANNEL_IMAGE, user.profileImage)
             }
             if (user.bannerImageURL != null) {
                 bannerImage.visibility = View.VISIBLE
-                requireContext().imageLoader.enqueue(
-                    ImageRequest.Builder(requireContext()).apply {
-                        data(user.bannerImageURL)
-                        crossfade(true)
-                        target(bannerImage)
-                    }.build()
-                )
+                Glide.with(this@ChannelPagerFragment)
+                    .load(user.bannerImageURL)
+                    .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                    .transition(DrawableTransitionOptions.withCrossFade())
+                    .into(bannerImage)
                 if (userName.isVisible) {
                     userName.setTextColor(Color.WHITE)
                     userName.setShadowLayer(4f, 0f, 0f, Color.BLACK)

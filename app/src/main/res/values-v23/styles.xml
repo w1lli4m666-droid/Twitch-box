@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="LightTheme" parent="BaseLightTheme">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="LightThemeReducedPadding" parent="BaseLightThemeReducedPadding">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="LightThemeCompactText" parent="BaseLightThemeCompactText">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="LightThemeReducedPaddingCompactText" parent="BaseLightThemeReducedPaddingCompactText">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="LightThemeSmallCorners" parent="BaseLightThemeSmallCorners">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="LightThemeSmallCornersReducedPadding" parent="BaseLightThemeSmallCornersReducedPadding">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="LightThemeSmallCornersCompactText" parent="BaseLightThemeSmallCornersCompactText">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="LightThemeSmallCornersReducedPaddingCompactText" parent="BaseLightThemeSmallCornersReducedPaddingCompactText">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="LightThemeNoCorners" parent="BaseLightThemeNoCorners">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="LightThemeNoCornersReducedPadding" parent="BaseLightThemeNoCornersReducedPadding">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="LightThemeNoCornersCompactText" parent="BaseLightThemeNoCornersCompactText">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="LightThemeNoCornersReducedPaddingCompactText" parent="BaseLightThemeNoCornersReducedPaddingCompactText">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="AppCompatLightTheme" parent="BaseAppCompatLightTheme">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+</resources>

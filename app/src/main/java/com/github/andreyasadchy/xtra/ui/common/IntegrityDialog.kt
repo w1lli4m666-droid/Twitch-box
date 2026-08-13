@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.Dialog
 import android.content.Context
 import android.content.DialogInterface
+import android.os.Build
 import android.os.Bundle
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
@@ -43,7 +44,12 @@ class IntegrityDialog : DialogFragment() {
         val context = requireContext()
         val builder = context.getAlertDialogBuilder()
             .setView(binding.root)
-        CookieManager.getInstance().removeAllCookies(null)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            CookieManager.getInstance().removeAllCookies(null)
+        } else {
+            @Suppress("DEPRECATION")
+            CookieManager.getInstance().removeAllCookie()
+        }
         val token = TwitchApiHelper.getGQLHeaders(context, true)[C.HEADER_TOKEN]?.removePrefix("OAuth ")
         if (!token.isNullOrBlank()) {
             CookieManager.getInstance().setCookie("https://www.twitch.tv", "auth-token=$token")
@@ -59,7 +65,7 @@ class IntegrityDialog : DialogFragment() {
             webViewClient = object : WebViewClientCompat() {
 
                 override fun shouldInterceptRequest(view: WebView, webViewRequest: WebResourceRequest): WebResourceResponse? {
-                    if (!webViewRequest.requestHeaders.entries.find { it.key.equals("Client-Integrity", true) }?.value.isNullOrBlank()) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && !webViewRequest.requestHeaders.entries.find { it.key.equals("Client-Integrity", true) }?.value.isNullOrBlank()) {
                         context.tokenPrefs().edit {
                             putLong(C.INTEGRITY_EXPIRATION, System.currentTimeMillis() + 57600000)
                             putString(C.GQL_HEADERS, JSONObject(

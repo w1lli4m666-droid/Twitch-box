@@ -2,6 +2,7 @@ package com.github.andreyasadchy.xtra.ui.game
 
 import android.content.Intent
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.LayoutInflater
@@ -31,10 +32,9 @@ import androidx.navigation.fragment.navArgs
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupWithNavController
 import androidx.viewpager2.widget.ViewPager2
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import coil3.request.target
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.FragmentGamePagerBinding
 import com.github.andreyasadchy.xtra.model.ui.Game
@@ -80,6 +80,9 @@ class GamePagerFragment : BaseNetworkFragment(), Scrollable, FragmentHost, Integ
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentGamePagerBinding.inflate(inflater, container, false)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR2) {
+            binding.sortBar.root.visibility = View.VISIBLE
+        }
         return binding.root
     }
 
@@ -94,8 +97,14 @@ class GamePagerFragment : BaseNetworkFragment(), Scrollable, FragmentHost, Integ
         }
         with(binding) {
             val activity = requireActivity() as MainActivity
-            if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                appBar.setExpanded(false, false)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                    appBar.setExpanded(false, false)
+                }
+            } else {
+                if (activity.orientation == 2) {
+                    appBar.setExpanded(false, false)
+                }
             }
             if (args.gameName != null) {
                 gameLayout.visibility = View.VISIBLE
@@ -107,13 +116,11 @@ class GamePagerFragment : BaseNetworkFragment(), Scrollable, FragmentHost, Integ
             if (args.boxArt != null) {
                 gameLayout.visibility = View.VISIBLE
                 gameImage.visibility = View.VISIBLE
-                requireContext().imageLoader.enqueue(
-                    ImageRequest.Builder(requireContext()).apply {
-                        data(args.boxArt)
-                        crossfade(true)
-                        target(gameImage)
-                    }.build()
-                )
+                Glide.with(this@GamePagerFragment)
+                    .load(args.boxArt)
+                    .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                    .transition(DrawableTransitionOptions.withCrossFade())
+                    .into(gameImage)
             } else {
                 gameImage.visibility = View.GONE
             }
@@ -357,13 +364,11 @@ class GamePagerFragment : BaseNetworkFragment(), Scrollable, FragmentHost, Integ
             if (!gameImage.isVisible && game?.boxArt != null) {
                 gameLayout.visibility = View.VISIBLE
                 gameImage.visibility = View.VISIBLE
-                requireContext().imageLoader.enqueue(
-                    ImageRequest.Builder(requireContext()).apply {
-                        data(game.boxArt)
-                        crossfade(true)
-                        target(gameImage)
-                    }.build()
-                )
+                Glide.with(this@GamePagerFragment)
+                    .load(game.boxArt)
+                    .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                    .transition(DrawableTransitionOptions.withCrossFade())
+                    .into(gameImage)
             }
             if (game?.name != null && game.name != args.gameName) {
                 gameLayout.visibility = View.VISIBLE
@@ -422,7 +427,7 @@ class GamePagerFragment : BaseNetworkFragment(), Scrollable, FragmentHost, Integ
                 val ids = mutableListOf<Int>()
                 for (tag in game.tags) {
                     val text = TextView(requireContext())
-                    val id = View.generateViewId()
+                    val id = ViewCompat.generateViewId()
                     text.id = id
                     ids.add(id)
                     text.text = tag.name

@@ -1,7 +1,9 @@
 package com.github.andreyasadchy.xtra.ui.following
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -32,6 +34,7 @@ import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 
 class FollowMediaFragment : Fragment(), Scrollable, FragmentHost {
@@ -142,6 +145,13 @@ class FollowMediaFragment : Fragment(), Scrollable, FragmentHost {
                 }
                 if (previousItem <= tabs.lastIndex) {
                     setText(adapter.getItem(previousItem).toString(), false)
+                }
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                    isFocusable = true
+                    isEnabled = false
+                    setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface))
+                } else {
+                    setRawInputType(InputType.TYPE_NULL)
                 }
             }
             childFragmentManager.registerFragmentLifecycleCallbacks(object : FragmentManager.FragmentLifecycleCallbacks() {

@@ -416,7 +416,7 @@ class ExoPlayerFragment : PlayerFragment() {
 
     override fun showPlaylistTags(mediaPlaylist: Boolean) {
         val tags = if (mediaPlaylist) {
-            (playbackService?.player?.currentManifest as? HlsManifest)?.mediaPlaylist?.tags?.toTypedArray()
+            (playbackService?.player?.currentManifest as? HlsManifest)?.mediaPlaylist?.tags?.dropLastWhile { it == "ads=true" }?.toTypedArray()
         } else {
             (playbackService?.player?.currentManifest as? HlsManifest)?.multivariantPlaylist?.tags?.toTypedArray()
         }?.joinToString("\n")

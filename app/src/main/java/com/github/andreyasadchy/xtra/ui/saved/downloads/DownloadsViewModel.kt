@@ -3,6 +3,7 @@ package com.github.andreyasadchy.xtra.ui.saved.downloads
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.provider.DocumentsContract
 import android.util.JsonReader
 import androidx.core.net.toUri
@@ -625,7 +626,11 @@ class DownloadsViewModel(
                 var gameSlug: String? = null
                 var gameName: String? = null
                 try {
-                    applicationContext.contentResolver.openInputStream(newUri)?.bufferedReader()?.use { fileReader ->
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                        applicationContext.contentResolver.openInputStream(newUri)?.bufferedReader()
+                    } else {
+                        FileInputStream(File(newUri.toString())).bufferedReader()
+                    }?.use { fileReader ->
                         JsonReader(fileReader).use { reader ->
                             reader.beginObject()
                             while (reader.hasNext()) {
@@ -745,10 +750,14 @@ class DownloadsViewModel(
                             }
                         }
                         video.chatUrl?.let {
-                            try {
-                                DocumentsContract.deleteDocument(applicationContext.contentResolver, it.toUri())
-                            } catch (e: Exception) {
+                            if (it.toUri().scheme == ContentResolver.SCHEME_CONTENT) {
+                                try {
+                                    DocumentsContract.deleteDocument(applicationContext.contentResolver, it.toUri())
+                                } catch (e: Exception) {
 
+                                }
+                            } else {
+                                File(it).delete()
                             }
                         }
                     } else {
@@ -785,7 +794,17 @@ class DownloadsViewModel(
                         } else {
                             playlistFile.delete()
                         }
-                        video.chatUrl?.let { File(it).delete() }
+                        video.chatUrl?.let {
+                            if (it.toUri().scheme == ContentResolver.SCHEME_CONTENT) {
+                                try {
+                                    DocumentsContract.deleteDocument(applicationContext.contentResolver, it.toUri())
+                                } catch (e: Exception) {
+
+                                }
+                            } else {
+                                File(it).delete()
+                            }
+                        }
                     }
                 }
             }.invokeOnCompletion {

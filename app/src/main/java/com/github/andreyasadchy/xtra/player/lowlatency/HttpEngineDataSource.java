@@ -18,8 +18,6 @@ package com.github.andreyasadchy.xtra.player.lowlatency;
 import static android.net.http.UrlRequest.REQUEST_PRIORITY_MEDIUM;
 import static androidx.media3.common.util.Util.castNonNull;
 import static androidx.media3.datasource.HttpUtil.buildRangeRequestHeader;
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
 import static java.lang.Math.min;
 
 import android.net.Uri;
@@ -38,7 +36,9 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RequiresExtension;
 import androidx.annotation.VisibleForTesting;
 import androidx.media3.common.C;
+import androidx.media3.common.MediaLibraryInfo;
 import androidx.media3.common.PlaybackException;
+import androidx.media3.common.util.Assertions;
 import androidx.media3.common.util.Clock;
 import androidx.media3.common.util.ConditionVariable;
 import androidx.media3.common.util.UnstableApi;
@@ -62,8 +62,6 @@ import com.google.common.util.concurrent.SettableFuture;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
-import java.net.CookieHandler;
-import java.net.CookieManager;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -97,6 +95,10 @@ import okhttp3.ResponseBody;
 @RequiresExtension(extension = Build.VERSION_CODES.S, version = 7)
 @UnstableApi
 public final class HttpEngineDataSource extends BaseDataSource implements HttpDataSource {
+
+  static {
+    MediaLibraryInfo.registerModule("media3.datasource.httpengine");
+  }
 
   /** {@link DataSource.Factory} for {@link HttpEngineDataSource} instances. */
   public static final class Factory implements HttpDataSource.Factory {
@@ -133,7 +135,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
      *     sure response handling is a fast operation when using a direct executor.
      */
     public Factory(HttpEngine httpEngine, Executor executor, boolean proxyMultivariantPlaylist, boolean proxyMediaPlaylist, @Nullable HttpEngine proxyClient, @Nullable Call.Factory multivariantPlaylistProxyClient, @Nullable Call.Factory mediaPlaylistProxyClient, Function0<Boolean> getProxyMediaPlaylist) {
-      this.httpEngine = checkNotNull(httpEngine);
+      this.httpEngine = Assertions.checkNotNull(httpEngine);
       this.executor = executor;
       this.proxyMultivariantPlaylist = proxyMultivariantPlaylist; // xtra: proxy
       this.proxyMediaPlaylist = proxyMediaPlaylist;
@@ -164,6 +166,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
      *     agent of the underlying {@link HttpEngine}.
      * @return This factory.
      */
+    @UnstableApi
     public Factory setUserAgent(@Nullable String userAgent) {
       this.userAgent = userAgent;
       return this;
@@ -377,7 +380,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
   private final boolean keepPostFor302Redirects;
 
   // Accessed by the calling thread only.
-  private boolean transferStarted;
+  private boolean opened;
   private long bytesRemaining;
 
   @Nullable private DataSpec currentDataSpec;
@@ -427,8 +430,8 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
       @Nullable Predicate<String> contentTypePredicate,
       boolean keepPostFor302Redirects) {
     super(/* isNetwork= */ true);
-    this.httpEngine = checkNotNull(httpEngine);
-    this.executor = checkNotNull(executor);
+    this.httpEngine = Assertions.checkNotNull(httpEngine);
+    this.executor = Assertions.checkNotNull(executor);
     this.proxyMultivariantPlaylist = proxyMultivariantPlaylist; // xtra: proxy
     this.proxyMediaPlaylist = proxyMediaPlaylist;
     this.proxyClient = proxyClient;
@@ -499,8 +502,8 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
   @UnstableApi
   @Override
   public long open(DataSpec dataSpec) throws HttpDataSourceException {
-    checkNotNull(dataSpec);
-    checkState(!transferStarted);
+    Assertions.checkNotNull(dataSpec);
+    Assertions.checkState(!opened);
 
     operation.close();
     resetConnectTimeout();
@@ -561,7 +564,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
     }
 
     // Check for a valid response code.
-    UrlResponseInfo responseInfo = checkNotNull(this.responseInfo);
+    UrlResponseInfo responseInfo = Assertions.checkNotNull(this.responseInfo);
     int responseCode = responseInfo.getHttpStatusCode();
     Map<String, List<String>> responseHeaders = responseInfo.getHeaders().getAsMap();
     if (responseCode < 200 || responseCode > 299) {
@@ -569,7 +572,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
         long documentSize =
             HttpUtil.getDocumentSize(getFirstHeader(responseHeaders, HttpHeaders.CONTENT_RANGE));
         if (dataSpec.position == documentSize) {
-          transferStarted = true;
+          opened = true;
           transferStarted(dataSpec);
           return dataSpec.length != C.LENGTH_UNSET ? dataSpec.length : 0;
         }
@@ -628,7 +631,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
       bytesRemaining = dataSpec.length;
     }
 
-    transferStarted = true;
+    opened = true;
     transferStarted(dataSpec);
 
     skipFully(bytesToSkip, dataSpec);
@@ -638,7 +641,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
   @UnstableApi
   @Override
   public int read(byte[] buffer, int offset, int length) throws HttpDataSourceException {
-    checkState(transferStarted);
+    Assertions.checkState(opened);
 
     if (length == 0) {
       return 0;
@@ -661,7 +664,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
 
       // The operation didn't time out, fail or finish, and therefore data must have been read.
       readBuffer.flip();
-      checkState(readBuffer.hasRemaining());
+      Assertions.checkState(readBuffer.hasRemaining());
     }
 
     // Ensure we read up to bytesRemaining, in case this was a Range request with finite end, but
@@ -709,7 +712,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
    */
   @UnstableApi
   public int read(ByteBuffer buffer) throws HttpDataSourceException {
-    checkState(transferStarted);
+    Assertions.checkState(opened);
 
     if (!buffer.isDirect()) {
       throw new IllegalArgumentException("Passed buffer is not a direct ByteBuffer");
@@ -743,7 +746,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
     }
 
     // The operation didn't time out, fail or finish, and therefore data must have been read.
-    checkState(readLength > buffer.remaining());
+    Assertions.checkState(readLength > buffer.remaining());
     int bytesRead = readLength - buffer.remaining();
     if (bytesRemaining != C.LENGTH_UNSET) {
       bytesRemaining -= bytesRead;
@@ -766,8 +769,8 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
     responseInfo = null;
     exception = null;
     finished = false;
-    if (transferStarted) {
-      transferStarted = false;
+    if (opened) {
+      opened = false;
       transferEnded();
       closeConnectionQuietly(); // xtra: proxy
     }
@@ -778,7 +781,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
   @UnstableApi
   @VisibleForTesting
   @Nullable
-  UrlRequestCallback getCurrentUrlRequestCallback() {
+  UrlRequest.Callback getCurrentUrlRequestCallback() {
     return currentUrlRequestWrapper == null
         ? null
         : currentUrlRequestWrapper.getUrlRequestCallback();
@@ -903,8 +906,8 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
         } else {
           // The operation didn't time out, fail or finish, and therefore data must have been read.
           readBuffer.flip();
-          checkState(readBuffer.hasRemaining());
-          int bytesSkipped = (int) Math.min(readBuffer.remaining(), bytesToSkip);
+          Assertions.checkState(readBuffer.hasRemaining());
+          int bytesSkipped = (int) min(readBuffer.remaining(), bytesToSkip);
           readBuffer.position(readBuffer.position() + bytesSkipped);
           bytesToSkip -= bytesSkipped;
         }
@@ -1024,6 +1027,14 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
   }
 
   @Nullable
+  private static String parseCookies(@Nullable List<String> setCookieHeaders) {
+    if (setCookieHeaders == null || setCookieHeaders.isEmpty()) {
+      return null;
+    }
+    return TextUtils.join(";", setCookieHeaders);
+  }
+
+  @Nullable
   private static String getFirstHeader(Map<String, List<String>> allHeaders, String headerName) {
     @Nullable List<String> headers = allHeaders.get(headerName);
     return headers != null && !headers.isEmpty() ? headers.get(0) : null;
@@ -1032,7 +1043,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
   // Copy as much as possible from the src buffer into dst buffer.
   // Returns the number of bytes copied.
   private static int copyByteBuffer(ByteBuffer src, ByteBuffer dst) {
-    int remaining = Math.min(src.remaining(), dst.remaining());
+    int remaining = min(src.remaining(), dst.remaining());
     int limit = src.limit();
     src.limit(src.position() + remaining);
     dst.put(src);
@@ -1052,7 +1063,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
     try {
       this.response = executeCall(call);
       response = this.response;
-      responseBody = checkNotNull(response.body());
+      responseBody = Assertions.checkNotNull(response.body());
       responseByteStream = responseBody.byteStream();
     } catch (IOException e) {
       throw HttpDataSourceException.createForIOException(
@@ -1067,7 +1078,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
         long documentSize =
             HttpUtil.getDocumentSize(response.headers().get(HttpHeaders.CONTENT_RANGE));
         if (dataSpec.position == documentSize) {
-          transferStarted = true;
+          opened = true;
           transferStarted(dataSpec);
           return dataSpec.length != C.LENGTH_UNSET ? dataSpec.length : 0;
         }
@@ -1075,7 +1086,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
 
       byte[] errorResponseBody;
       try {
-        errorResponseBody = ByteStreams.toByteArray(checkNotNull(responseByteStream));
+        errorResponseBody = ByteStreams.toByteArray(Assertions.checkNotNull(responseByteStream));
       } catch (IOException e) {
         errorResponseBody = Util.EMPTY_BYTE_ARRAY;
       }
@@ -1111,7 +1122,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
       bytesRemaining = contentLength != -1 ? (contentLength - bytesToSkip) : C.LENGTH_UNSET;
     }
 
-    transferStarted = true;
+    opened = true;
     transferStarted(dataSpec);
 
     try {
@@ -1164,10 +1175,10 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
 
     @Nullable RequestBody requestBody = null;
     if (dataSpec.httpBody != null) {
-      requestBody = RequestBody.create(dataSpec.httpBody);
+      requestBody = RequestBody.create(null, dataSpec.httpBody);
     } else if (dataSpec.httpMethod == DataSpec.HTTP_METHOD_POST) {
       // OkHttp requires a non-null body for POST requests.
-      requestBody = RequestBody.create(Util.EMPTY_BYTE_ARRAY);
+      requestBody = RequestBody.create(null, Util.EMPTY_BYTE_ARRAY);
     }
     builder.method(dataSpec.getHttpMethodString(), requestBody);
     return builder.build();
@@ -1200,7 +1211,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
 
   private void closeConnectionQuietly() {
     if (response != null) {
-      checkNotNull(response.body()).close();
+      Assertions.checkNotNull(response.body()).close();
     }
     responseByteStream = null;
   }
@@ -1232,7 +1243,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
       urlRequest.cancel();
     }
 
-    public UrlRequestCallback getUrlRequestCallback() {
+    public UrlRequest.Callback getUrlRequestCallback() {
       return urlRequestCallback;
     }
 
@@ -1252,7 +1263,8 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
     }
   }
 
-  final class UrlRequestCallback implements UrlRequest.Callback {
+  private final class UrlRequestCallback implements UrlRequest.Callback {
+
     private volatile boolean isClosed = false;
 
     public void close() {
@@ -1265,7 +1277,7 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
       if (isClosed) {
         return;
       }
-      DataSpec dataSpec = checkNotNull(currentDataSpec);
+      DataSpec dataSpec = Assertions.checkNotNull(currentDataSpec);
       int responseCode = info.getHttpStatusCode();
       if (dataSpec.httpMethod == DataSpec.HTTP_METHOD_POST) {
         // The industry standard is to disregard POST redirects when the status code is 307 or
@@ -1287,19 +1299,6 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
         resetConnectTimeout();
       }
 
-      CookieHandler cookieHandler = CookieHandler.getDefault();
-
-      if (cookieHandler == null && handleSetCookieRequests) {
-        // a temporary CookieManager is created for the duration of this request - this guarantees
-        // redirects preserve the cookies correctly.
-        cookieHandler = new CookieManager();
-      }
-
-      String url = info.getUrl();
-      Map<String, List<String>> headers = info.getHeaders().getAsMap();
-      HttpUtil.storeCookiesFromHeaders(url, headers, cookieHandler);
-      String cookieHeaders = HttpUtil.getCookieHeader(url, headers, cookieHandler);
-
       boolean shouldKeepPost =
           keepPostFor302Redirects
               && dataSpec.httpMethod == DataSpec.HTTP_METHOD_POST
@@ -1307,12 +1306,17 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
 
       // request.followRedirect() transforms a POST request into a GET request, so if we want to
       // keep it as a POST we need to fall through to the manual redirect logic below.
-      if (!shouldKeepPost) {
-        // No cookies, or we're not handling them - so just follow the redirect.
-        if (!handleSetCookieRequests || TextUtils.isEmpty(cookieHeaders)) {
-          request.followRedirect();
-          return;
-        }
+      if (!shouldKeepPost && !handleSetCookieRequests) {
+        request.followRedirect();
+        return;
+      }
+
+      @Nullable
+      String cookieHeadersValue =
+          parseCookies(info.getHeaders().getAsMap().get(HttpHeaders.SET_COOKIE));
+      if (!shouldKeepPost && TextUtils.isEmpty(cookieHeadersValue)) {
+        request.followRedirect();
+        return;
       }
 
       request.cancel();
@@ -1330,15 +1334,13 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
       } else {
         redirectUrlDataSpec = dataSpec.withUri(Uri.parse(newLocationUrl));
       }
-
-      if (!TextUtils.isEmpty(cookieHeaders)) {
+      if (!TextUtils.isEmpty(cookieHeadersValue)) {
         Map<String, String> requestHeaders = new HashMap<>();
         requestHeaders.putAll(dataSpec.httpRequestHeaders);
-        requestHeaders.put(HttpHeaders.COOKIE, cookieHeaders);
+        requestHeaders.put(HttpHeaders.COOKIE, cookieHeadersValue);
         redirectUrlDataSpec =
             redirectUrlDataSpec.buildUpon().setHttpRequestHeaders(requestHeaders).build();
       }
-
       UrlRequestWrapper redirectUrlRequestWrapper;
       try {
         redirectUrlRequestWrapper = buildRequestWrapper(redirectUrlDataSpec);
@@ -1358,8 +1360,6 @@ public final class HttpEngineDataSource extends BaseDataSource implements HttpDa
       if (isClosed) {
         return;
       }
-      HttpUtil.storeCookiesFromHeaders(
-          info.getUrl(), info.getHeaders().getAsMap(), CookieHandler.getDefault());
       responseInfo = info;
       operation.open();
     }

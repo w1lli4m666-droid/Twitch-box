@@ -30,6 +30,7 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.ViewPropertyAnimator
+import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.FrameLayout
@@ -38,7 +39,9 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.trackPipAnimationHintView
 import androidx.annotation.OptIn
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import androidx.core.content.res.use
 import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -48,6 +51,7 @@ import androidx.core.view.doOnLayout
 import androidx.core.view.doOnPreDraw
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
+import androidx.core.view.updateMargins
 import androidx.core.view.updatePadding
 import androidx.fragment.app.viewModels
 import androidx.fragment.app.DialogFragment
@@ -129,6 +133,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
     private val tvRemoteSeekRepeater = TvRemoteSeekRepeater()
     private var backgroundColor: Int? = null
     private var backgroundVisible = false
+    private var isLightTheme: Boolean? = null
 
     private val backPressedCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
@@ -145,6 +150,12 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
             }
         }
     }
+
+    @Suppress("DEPRECATION")
+    private var systemUiFlags = (View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            or View.SYSTEM_UI_FLAG_FULLSCREEN)
 
     open fun getCurrentPosition(): Long? = null
     open fun getCurrentSpeed(): Float? = null
@@ -277,7 +288,15 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
             enableNetworkCheck = false
         }
         super.onCreate(savedInstanceState)
-        isPortrait = resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            @Suppress("DEPRECATION")
+            systemUiFlags = systemUiFlags or (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
+        }
+        isPortrait = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            (activity as? MainActivity)?.orientation == 1
+        } else {
+            resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+        }
         requireActivity().onBackPressedDispatcher.addCallback(this, backPressedCallback)
         WindowCompat.getInsetsController(
             requireActivity().window,
@@ -876,10 +895,10 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                     audioOnly.visibility = View.VISIBLE
                     audioOnly.setOnClickListener {
                         showController(force = true)
-                        if (playbackService?.quality?.name == BasePlaybackService.AUDIO_ONLY_QUALITY) {
+                        if (playbackService?.quality?.name == VideoQuality.AUDIO_ONLY_QUALITY) {
                             changeQuality(playbackService?.previousQuality)
                         } else {
-                            changeQuality(playbackService?.qualities?.find { it.name == BasePlaybackService.AUDIO_ONLY_QUALITY })
+                            changeQuality(playbackService?.qualities?.find { it.name == VideoQuality.AUDIO_ONLY_QUALITY })
                         }
                         changePlayerMode()
                     }
@@ -1240,7 +1259,11 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                 playerLayout.updateLayoutParams<FrameLayout.LayoutParams> {
                     width = ViewGroup.LayoutParams.MATCH_PARENT
                     height = ViewGroup.LayoutParams.MATCH_PARENT
-                    marginEnd = 0
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                        marginEnd = 0
+                    } else {
+                        updateMargins(right = 0)
+                    }
                 }
                 chatLayout.updateLayoutParams<FrameLayout.LayoutParams> {
                     width = ViewGroup.LayoutParams.MATCH_PARENT
@@ -1296,7 +1319,11 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                     playerLayout.updateLayoutParams<FrameLayout.LayoutParams> {
                         width = ViewGroup.LayoutParams.MATCH_PARENT
                         height = ViewGroup.LayoutParams.MATCH_PARENT
-                        marginEnd = chatWidth
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                            marginEnd = chatWidth
+                        } else {
+                            updateMargins(right = chatWidth)
+                        }
                     }
                     chatLayout.updateLayoutParams<FrameLayout.LayoutParams> {
                         width = chatWidthLandscape
@@ -1318,7 +1345,11 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                     playerLayout.updateLayoutParams<FrameLayout.LayoutParams> {
                         width = ViewGroup.LayoutParams.MATCH_PARENT
                         height = ViewGroup.LayoutParams.MATCH_PARENT
-                        marginEnd = 0
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                            marginEnd = 0
+                        } else {
+                            updateMargins(right = 0)
+                        }
                     }
                     chatLayout.updateLayoutParams<FrameLayout.LayoutParams> {
                         width = chatWidthLandscape
@@ -1435,10 +1466,10 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
             }
             qualities.map { quality ->
                 when (quality.name) {
-                    BasePlaybackService.AUTO_QUALITY -> getString(R.string.auto)
-                    BasePlaybackService.SOURCE_QUALITY -> getString(R.string.source)
-                    BasePlaybackService.AUDIO_ONLY_QUALITY -> getString(R.string.audio_only)
-                    BasePlaybackService.CHAT_ONLY_QUALITY -> getString(R.string.chat_only)
+                    VideoQuality.AUTO_QUALITY -> getString(R.string.auto)
+                    VideoQuality.SOURCE_QUALITY -> getString(R.string.source)
+                    VideoQuality.AUDIO_ONLY_QUALITY -> getString(R.string.audio_only)
+                    VideoQuality.CHAT_ONLY_QUALITY -> getString(R.string.chat_only)
                     else -> {
                         if (hideCodecs) {
                             quality.name.toString()
@@ -1568,7 +1599,11 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
             playerLayout.updateLayoutParams<FrameLayout.LayoutParams> {
                 width = ViewGroup.LayoutParams.MATCH_PARENT
                 height = ViewGroup.LayoutParams.MATCH_PARENT
-                marginEnd = 0
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                    marginEnd = 0
+                } else {
+                    updateMargins(right = 0)
+                }
             }
             (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(chatLayout.windowToken, 0)
             chatLayout.clearFocus()
@@ -1581,7 +1616,11 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
             playerLayout.updateLayoutParams<FrameLayout.LayoutParams> {
                 width = ViewGroup.LayoutParams.MATCH_PARENT
                 height = ViewGroup.LayoutParams.MATCH_PARENT
-                marginEnd = chatWidthLandscape
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                    marginEnd = chatWidthLandscape
+                } else {
+                    updateMargins(right = chatWidthLandscape)
+                }
             }
             chatLayout.updateLayoutParams<FrameLayout.LayoutParams> {
                 width = chatWidthLandscape
@@ -1897,35 +1936,68 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
     }
 
     private fun showStatusBar() {
-        WindowCompat.getInsetsController(
-            requireActivity().window,
-            requireActivity().window.decorView
-        ).show(WindowInsetsCompat.Type.systemBars())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            WindowCompat.getInsetsController(
+                requireActivity().window,
+                requireActivity().window.decorView
+            ).show(WindowInsetsCompat.Type.systemBars())
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                if (isAdded) {
+                    @Suppress("DEPRECATION")
+                    requireActivity().window.decorView.systemUiVisibility = 0
+                }
+            }
+        }
     }
 
     private fun hideStatusBar() {
-        WindowCompat.getInsetsController(
-            requireActivity().window,
-            requireActivity().window.decorView
-        ).hide(WindowInsetsCompat.Type.systemBars())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            WindowCompat.getInsetsController(
+                requireActivity().window,
+                requireActivity().window.decorView
+            ).hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                if (isAdded) {
+                    @Suppress("DEPRECATION")
+                    requireActivity().window.decorView.systemUiVisibility = systemUiFlags
+                }
+            }
+        }
     }
 
     private fun enableBackground() {
         backgroundVisible = true
         binding.playerBackground.setBackgroundColor(
             if (isPortrait) {
-                backgroundColor ?: MaterialColors.getColor(binding.playerBackground, com.google.android.material.R.attr.colorSurface).also { backgroundColor = it }
+                backgroundColor ?: if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M &&
+                    isLightTheme ?: requireContext().obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.isLightTheme)).use {
+                        it.getBoolean(0, false)
+                    }.also { isLightTheme = it }) {
+                    ContextCompat.getColor(requireContext(), R.color.darkScrimOnLightSurface)
+                } else {
+                    MaterialColors.getColor(binding.playerBackground, com.google.android.material.R.attr.colorSurface)
+                }.also { backgroundColor = it }
             } else {
                 Color.BLACK
             }
         )
         binding.playerBackground.isClickable = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            @Suppress("DEPRECATION")
+            requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
+        }
     }
 
     private fun disableBackground() {
         backgroundVisible = false
         binding.playerBackground.setBackgroundColor(Color.TRANSPARENT)
         binding.playerBackground.isClickable = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            @Suppress("DEPRECATION")
+            requireActivity().window.addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
+        }
     }
 
     private fun getHorizontalInsets(windowInsets: WindowInsetsCompat?): Int {
@@ -2027,7 +2099,7 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
 
     fun canEnterPictureInPicture(): Boolean {
         val quality = playbackService?.quality
-        return quality?.name != BasePlaybackService.AUDIO_ONLY_QUALITY &&  quality?.name != BasePlaybackService.CHAT_ONLY_QUALITY
+        return quality?.name != VideoQuality.AUDIO_ONLY_QUALITY &&  quality?.name != VideoQuality.CHAT_ONLY_QUALITY
     }
 
     protected fun setPipActions(playing: Boolean) {
@@ -2322,8 +2394,10 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                         thumbnail = playbackService?.thumbnail,
                         createdAt = playbackService?.createdAt,
                         qualityNames = qualities?.map { it.name.toString() }?.toTypedArray(),
-                        qualityCodecs = qualities?.map { it.codecs.toString() }?.toTypedArray(),
+                        qualityResolutions = qualities?.map { it.resolution.toString() }?.toTypedArray(),
+                        qualityFrameRates = qualities?.map { it.frameRate.toString() }?.toTypedArray(),
                         qualityBitrates = qualities?.map { it.bitrate.toString() }?.toTypedArray(),
+                        qualityCodecs = qualities?.map { it.codecs.toString() }?.toTypedArray(),
                         qualityUrls = qualities?.map { it.url.toString() }?.toTypedArray(),
                     ).show(childFragmentManager, null)
                 }
@@ -2347,8 +2421,10 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                         totalDuration = getTotalDuration(),
                         currentPosition = getCurrentPosition(),
                         qualityNames = qualities?.map { it.name.toString() }?.toTypedArray(),
-                        qualityCodecs = qualities?.map { it.codecs.toString() }?.toTypedArray(),
+                        qualityResolutions = qualities?.map { it.resolution.toString() }?.toTypedArray(),
+                        qualityFrameRates = qualities?.map { it.frameRate.toString() }?.toTypedArray(),
                         qualityBitrates = qualities?.map { it.bitrate.toString() }?.toTypedArray(),
+                        qualityCodecs = qualities?.map { it.codecs.toString() }?.toTypedArray(),
                         qualityUrls = qualities?.map { it.url.toString() }?.toTypedArray(),
                     ).show(childFragmentManager, null)
                 }
@@ -2371,8 +2447,10 @@ abstract class PlayerFragment : BaseNetworkFragment(), RadioButtonDialogFragment
                         videoOffsetSeconds = playbackService?.videoOffsetSeconds,
                         videoCreatedAt = playbackService?.videoCreatedAt,
                         qualityNames = qualities?.map { it.name.toString() }?.toTypedArray(),
-                        qualityCodecs = qualities?.map { it.codecs.toString() }?.toTypedArray(),
+                        qualityResolutions = qualities?.map { it.resolution.toString() }?.toTypedArray(),
+                        qualityFrameRates = qualities?.map { it.frameRate.toString() }?.toTypedArray(),
                         qualityBitrates = qualities?.map { it.bitrate.toString() }?.toTypedArray(),
+                        qualityCodecs = qualities?.map { it.codecs.toString() }?.toTypedArray(),
                         qualityUrls = qualities?.map { it.url.toString() }?.toTypedArray(),
                     ).show(childFragmentManager, null)
                 }

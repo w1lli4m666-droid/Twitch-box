@@ -10,12 +10,16 @@ import androidx.annotation.RequiresExtension
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
+import okhttp3.Headers
 import okhttp3.Interceptor
+import okhttp3.MediaType
+import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.Response
 import okhttp3.ResponseBody
-import okhttp3.internal.closeQuietly
 import okio.Buffer
 import okio.BufferedSource
+import okio.Closeable
 import okio.ForwardingSource
 import okio.buffer
 import org.chromium.net.CronetException
@@ -340,4 +344,30 @@ object NetworkUtils {
                 },
             )
         }
+
+    fun Closeable.closeQuietly() {
+        try {
+            close()
+        } catch (rethrown: RuntimeException) {
+            throw rethrown
+        } catch (_: Exception) {
+        }
+    }
+
+    val Response.body
+        get() = this.body()!!
+
+    val Response.request: Request
+        get() = this.request()
+
+    val Response.code
+        get() = this.code()
+
+    fun Map<String, String>.toHeaders(): Headers {
+        return Headers.of(this)
+    }
+
+    fun String.toRequestBody(contentType: MediaType? = null): RequestBody {
+        return RequestBody.create(contentType, toByteArray())
+    }
 }

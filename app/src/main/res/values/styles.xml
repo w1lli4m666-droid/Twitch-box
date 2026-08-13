@@ -16,9 +16,7 @@
         <item name="radioButtonStyle">@style/RadioButton</item>
         <item name="checkboxStyle">@style/CheckBox</item>
         <item name="materialSwitchStyle">@style/SwitchBlue</item>
-        <item name="sliderStyle">@style/Slider</item>
-        <item name="linearProgressIndicatorStyle">@style/Widget.Material3.LinearProgressIndicator.Legacy</item>
-        <item name="preferenceTheme">@style/PreferenceTheme</item>
+        <item name="preferenceTheme">@style/prefDark</item>
         <item name="android:navigationBarColor">@color/darkScrim</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
     </style>
@@ -39,11 +37,9 @@
         <item name="radioButtonStyle">@style/RadioButton</item>
         <item name="checkboxStyle">@style/CheckBox</item>
         <item name="materialSwitchStyle">@style/SwitchBlue</item>
-        <item name="sliderStyle">@style/Slider</item>
-        <item name="linearProgressIndicatorStyle">@style/Widget.Material3.LinearProgressIndicator.Legacy</item>
-        <item name="preferenceTheme">@style/PreferenceTheme</item>
+        <item name="preferenceTheme">@style/prefLight</item>
         <item name="android:navigationBarColor">@color/darkScrim</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">@color/darkScrim</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
         <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
     </style>
@@ -68,12 +64,11 @@
         <item name="radioButtonStyle">@style/RadioButton</item>
         <item name="checkboxStyle">@style/CheckBox</item>
         <item name="materialSwitchStyle">@style/SwitchAmoled</item>
-        <item name="sliderStyle">@style/Slider</item>
         <item name="linearProgressIndicatorStyle">@style/LinearProgressIndicatorAmoled</item>
         <item name="bottomNavigationStyle">@style/BottomNavigationAmoled</item>
         <item name="bottomSheetDialogTheme">@style/BottomSheet</item>
         <item name="materialAlertDialogTheme">@style/Dialog</item>
-        <item name="preferenceTheme">@style/PreferenceTheme</item>
+        <item name="preferenceTheme">@style/prefDark</item>
         <item name="android:navigationBarColor">@color/darkScrim</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
     </style>
@@ -101,10 +96,8 @@
         <item name="radioButtonStyle">@style/RadioButton</item>
         <item name="checkboxStyle">@style/CheckBox</item>
         <item name="materialSwitchStyle">@style/SwitchBlue</item>
-        <item name="sliderStyle">@style/Slider</item>
-        <item name="linearProgressIndicatorStyle">@style/Widget.Material3.LinearProgressIndicator.Legacy</item>
         <item name="bottomNavigationStyle">@style/BottomNavigationBlue</item>
-        <item name="preferenceTheme">@style/PreferenceTheme</item>
+        <item name="preferenceTheme">@style/prefDark</item>
         <item name="android:navigationBarColor">@color/darkScrim</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
     </style>
@@ -113,7 +106,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigation</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -124,7 +117,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigation</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -135,7 +128,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigationAmoled</item>
         <item name="cardStyle">@style/CompactCardAmoled</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -146,7 +139,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigationBlue</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -191,7 +184,6 @@
         <item name="strokeWidth">3dp</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
-        <item name="android:stateListAnimator">@animator/tv_card_focus</item>
     </style>
 
     <style name="CompactCardAmoled" parent="Widget.Material3.CardView.Elevated">
@@ -201,7 +193,6 @@
         <item name="strokeWidth">3dp</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
-        <item name="android:stateListAnimator">@animator/tv_card_focus</item>
     </style>
 
     <style name="CompactRadioButton" parent="Widget.Material3.CompoundButton.RadioButton">
@@ -382,7 +373,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigation</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -408,7 +399,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigation</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -434,7 +425,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigationAmoled</item>
         <item name="cardStyle">@style/CompactCardAmoled</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -460,7 +451,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigationBlue</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -483,47 +474,72 @@
     </style>
 
     <style name="BaseDarkThemeSmallCorners" parent="BaseDarkTheme">
-        <item name="shapeCornerSizeExtraSmall">4dp</item>
-        <item name="shapeCornerSizeSmall">6dp</item>
-        <item name="shapeCornerSizeMedium">9dp</item>
-        <item name="shapeCornerSizeLarge">12dp</item>
-        <item name="shapeCornerSizeExtraLarge">14dp</item>
+        <item name="shapeAppearanceCornerExtraSmall">@style/CompactExtraSmallCorner</item>
+        <item name="shapeAppearanceCornerSmall">@style/CompactSmallCorner</item>
+        <item name="shapeAppearanceCornerMedium">@style/CompactMediumComponent</item>
+        <item name="shapeAppearanceCornerLarge">@style/CompactLargeComponent</item>
+        <item name="shapeAppearanceCornerExtraLarge">@style/CompactExtraLargeCorner</item>
         <item name="shapeAppearanceSmallComponent">@style/CompactSmallComponent</item>
         <item name="shapeAppearanceMediumComponent">@style/CompactMediumComponent</item>
         <item name="shapeAppearanceLargeComponent">@style/CompactLargeComponent</item>
     </style>
 
     <style name="BaseLightThemeSmallCorners" parent="BaseLightTheme">
-        <item name="shapeCornerSizeExtraSmall">4dp</item>
-        <item name="shapeCornerSizeSmall">6dp</item>
-        <item name="shapeCornerSizeMedium">9dp</item>
-        <item name="shapeCornerSizeLarge">12dp</item>
-        <item name="shapeCornerSizeExtraLarge">14dp</item>
+        <item name="shapeAppearanceCornerExtraSmall">@style/CompactExtraSmallCorner</item>
+        <item name="shapeAppearanceCornerSmall">@style/CompactSmallCorner</item>
+        <item name="shapeAppearanceCornerMedium">@style/CompactMediumComponent</item>
+        <item name="shapeAppearanceCornerLarge">@style/CompactLargeComponent</item>
+        <item name="shapeAppearanceCornerExtraLarge">@style/CompactExtraLargeCorner</item>
         <item name="shapeAppearanceSmallComponent">@style/CompactSmallComponent</item>
         <item name="shapeAppearanceMediumComponent">@style/CompactMediumComponent</item>
         <item name="shapeAppearanceLargeComponent">@style/CompactLargeComponent</item>
     </style>
 
     <style name="BaseAmoledThemeSmallCorners" parent="BaseAmoledTheme">
-        <item name="shapeCornerSizeExtraSmall">4dp</item>
-        <item name="shapeCornerSizeSmall">6dp</item>
-        <item name="shapeCornerSizeMedium">9dp</item>
-        <item name="shapeCornerSizeLarge">12dp</item>
-        <item name="shapeCornerSizeExtraLarge">14dp</item>
+        <item name="shapeAppearanceCornerExtraSmall">@style/CompactExtraSmallCorner</item>
+        <item name="shapeAppearanceCornerSmall">@style/CompactSmallCorner</item>
+        <item name="shapeAppearanceCornerMedium">@style/CompactMediumComponent</item>
+        <item name="shapeAppearanceCornerLarge">@style/CompactLargeComponent</item>
+        <item name="shapeAppearanceCornerExtraLarge">@style/CompactExtraLargeCorner</item>
         <item name="shapeAppearanceSmallComponent">@style/CompactSmallComponent</item>
         <item name="shapeAppearanceMediumComponent">@style/CompactMediumComponent</item>
         <item name="shapeAppearanceLargeComponent">@style/CompactLargeComponent</item>
     </style>
 
     <style name="BaseBlueThemeSmallCorners" parent="BaseBlueTheme">
-        <item name="shapeCornerSizeExtraSmall">4dp</item>
-        <item name="shapeCornerSizeSmall">6dp</item>
-        <item name="shapeCornerSizeMedium">9dp</item>
-        <item name="shapeCornerSizeLarge">12dp</item>
-        <item name="shapeCornerSizeExtraLarge">14dp</item>
+        <item name="shapeAppearanceCornerExtraSmall">@style/CompactExtraSmallCorner</item>
+        <item name="shapeAppearanceCornerSmall">@style/CompactSmallCorner</item>
+        <item name="shapeAppearanceCornerMedium">@style/CompactMediumComponent</item>
+        <item name="shapeAppearanceCornerLarge">@style/CompactLargeComponent</item>
+        <item name="shapeAppearanceCornerExtraLarge">@style/CompactExtraLargeCorner</item>
         <item name="shapeAppearanceSmallComponent">@style/CompactSmallComponent</item>
         <item name="shapeAppearanceMediumComponent">@style/CompactMediumComponent</item>
         <item name="shapeAppearanceLargeComponent">@style/CompactLargeComponent</item>
+    </style>
+
+    <style name="CompactExtraSmallCorner" parent="ShapeAppearance.Material3.Corner.ExtraSmall">
+        <item name="cornerFamily">?attr/shapeCornerFamily</item>
+        <item name="cornerSize">4dp</item>
+    </style>
+
+    <style name="CompactSmallCorner" parent="ShapeAppearance.Material3.Corner.Small">
+        <item name="cornerFamily">?attr/shapeCornerFamily</item>
+        <item name="cornerSize">6dp</item>
+    </style>
+
+    <style name="CompactMediumCorner" parent="ShapeAppearance.Material3.Corner.Medium">
+        <item name="cornerFamily">?attr/shapeCornerFamily</item>
+        <item name="cornerSize">9dp</item>
+    </style>
+
+    <style name="CompactLargeCorner" parent="ShapeAppearance.Material3.Corner.Large">
+        <item name="cornerFamily">?attr/shapeCornerFamily</item>
+        <item name="cornerSize">12dp</item>
+    </style>
+
+    <style name="CompactExtraLargeCorner" parent="ShapeAppearance.Material3.Corner.ExtraLarge">
+        <item name="cornerFamily">?attr/shapeCornerFamily</item>
+        <item name="cornerSize">14dp</item>
     </style>
 
     <style name="CompactSmallComponent" parent="ShapeAppearance.Material3.SmallComponent">
@@ -542,7 +558,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigation</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -553,7 +569,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigation</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -564,7 +580,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigationAmoled</item>
         <item name="cardStyle">@style/CompactCardAmoled</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -575,7 +591,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigationBlue</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -658,7 +674,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigation</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -684,7 +700,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigation</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -710,7 +726,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigationAmoled</item>
         <item name="cardStyle">@style/CompactCardAmoled</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -736,7 +752,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigationBlue</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -810,7 +826,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigation</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -821,7 +837,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigation</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -832,7 +848,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigationAmoled</item>
         <item name="cardStyle">@style/CompactCardAmoled</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -843,7 +859,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigationBlue</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -926,7 +942,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigation</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -952,7 +968,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigation</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -978,7 +994,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigationAmoled</item>
         <item name="cardStyle">@style/CompactCardAmoled</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -1004,7 +1020,7 @@
         <item name="actionBarSize">42dp</item>
         <item name="toolbarStyle">@style/CompactToolbar</item>
         <item name="tabLayoutHeight">42dp</item>
-        <item name="bottomNavigationHeight">40dp</item>
+        <item name="bottomNavigationHeight">55dp</item>
         <item name="bottomNavigationStyle">@style/CompactBottomNavigationBlue</item>
         <item name="cardStyle">@style/CompactCard</item>
         <item name="radioButtonStyle">@style/CompactRadioButton</item>
@@ -1135,7 +1151,6 @@
         <item name="strokeWidth">3dp</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
-        <item name="android:stateListAnimator">@animator/tv_card_focus</item>
     </style>
 
     <style name="CardAmoled" parent="Widget.Material3.CardView.Elevated">
@@ -1145,7 +1160,6 @@
         <item name="strokeWidth">3dp</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
-        <item name="android:stateListAnimator">@animator/tv_card_focus</item>
     </style>
 
     <style name="CardOverlayAmoled">
@@ -1180,11 +1194,7 @@
         <item name="colorPrimaryContainer">@android:color/white</item>
     </style>
 
-    <style name="Slider" parent="Widget.Material3.Slider">
-        <item name="trackColorInactive">?attr/colorSurfaceContainerHighest</item>
-    </style>
-
-    <style name="LinearProgressIndicatorAmoled" parent="Widget.Material3.LinearProgressIndicator.Legacy">
+    <style name="LinearProgressIndicatorAmoled" parent="Widget.Material3.LinearProgressIndicator">
         <item name="indicatorColor">@android:color/white</item>
     </style>
 
@@ -1233,6 +1243,14 @@
         <item name="widgetLayout">@layout/material_switch</item>
     </style>
 
+    <style name="prefDark" parent="PreferenceTheme">
+        <item name="android:tint">@android:color/white</item>
+    </style>
+
+    <style name="prefLight" parent="PreferenceTheme">
+        <item name="android:tint">@android:color/black</item>
+    </style>
+
     <style name="BaseAppCompatDarkTheme" parent="Theme.AppCompat.NoActionBar">
         <item name="colorAccent">@color/accent</item>
         <item name="colorPrimary">@color/accent</item>
@@ -1257,7 +1275,6 @@
         <item name="tabStyle">@style/MaterialTabLayoutDark</item>
         <item name="radioButtonStyle">@style/AppCompatRadioButton</item>
         <item name="checkboxStyle">@style/MaterialCheckBox</item>
-        <item name="sliderStyle">@style/Widget.Material3.Slider.Legacy</item>
         <item name="linearProgressIndicatorStyle">@style/MaterialLinearProgressIndicator</item>
         <item name="floatingActionButtonSmallStyle">@style/MaterialFloatingActionButton</item>
         <item name="materialDividerStyle">@style/MaterialDividerDark</item>
@@ -1317,7 +1334,6 @@
         <item name="tabStyle">@style/MaterialTabLayoutLight</item>
         <item name="radioButtonStyle">@style/AppCompatRadioButton</item>
         <item name="checkboxStyle">@style/MaterialCheckBox</item>
-        <item name="sliderStyle">@style/Widget.Material3.Slider.Legacy</item>
         <item name="linearProgressIndicatorStyle">@style/MaterialLinearProgressIndicator</item>
         <item name="floatingActionButtonSmallStyle">@style/MaterialFloatingActionButton</item>
         <item name="materialDividerStyle">@style/MaterialDividerLight</item>
@@ -1350,7 +1366,7 @@
         <item name="shapeAppearanceLargeComponent">@style/ShapeAppearance.Material3.Corner.None</item>
         <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Material3.Corner.None</item>
         <item name="android:navigationBarColor">@color/darkScrim</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">@color/darkScrim</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
         <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
     </style>
@@ -1379,7 +1395,6 @@
         <item name="tabStyle">@style/MaterialTabLayoutDark</item>
         <item name="radioButtonStyle">@style/AppCompatRadioButton</item>
         <item name="checkboxStyle">@style/MaterialCheckBox</item>
-        <item name="sliderStyle">@style/Widget.Material3.Slider.Legacy</item>
         <item name="linearProgressIndicatorStyle">@style/MaterialLinearProgressIndicator</item>
         <item name="floatingActionButtonSmallStyle">@style/MaterialFloatingActionButton</item>
         <item name="materialDividerStyle">@style/MaterialDividerDark</item>
@@ -1439,7 +1454,6 @@
         <item name="tabStyle">@style/MaterialTabLayoutDark</item>
         <item name="radioButtonStyle">@style/AppCompatRadioButton</item>
         <item name="checkboxStyle">@style/MaterialCheckBox</item>
-        <item name="sliderStyle">@style/Widget.Material3.Slider.Legacy</item>
         <item name="linearProgressIndicatorStyle">@style/MaterialLinearProgressIndicatorBlue</item>
         <item name="floatingActionButtonSmallStyle">@style/MaterialFloatingActionButton</item>
         <item name="materialDividerStyle">@style/MaterialDividerBlue</item>
@@ -1482,7 +1496,6 @@
         <item name="strokeWidth">3dp</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
-        <item name="android:stateListAnimator">@animator/tv_card_focus</item>
     </style>
 
     <style name="MaterialCardOverlay">

@@ -1,8 +1,5 @@
 package com.github.andreyasadchy.xtra.ui.player
 
-import com.github.andreyasadchy.xtra.util.isNetworkAvailableCompat
-import com.github.andreyasadchy.xtra.util.isActiveNetworkCellularCompat
-
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -13,9 +10,11 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.drawable.Icon
 import android.media.AudioAttributes
 import android.media.MediaMetadata
 import android.media.MediaPlayer
+import android.media.PlaybackParams
 import android.media.audiofx.DynamicsProcessing
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
@@ -34,6 +33,8 @@ import android.os.PowerManager
 import android.util.Base64
 import android.view.KeyEvent
 import android.widget.Toast
+import androidx.annotation.RequiresApi
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
@@ -47,7 +48,10 @@ import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.MediaButtonReceiver
 import com.github.andreyasadchy.xtra.util.NetworkUtils
+import com.github.andreyasadchy.xtra.util.NetworkUtils.body
+import com.github.andreyasadchy.xtra.util.NetworkUtils.code
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
+import com.github.andreyasadchy.xtra.util.NetworkUtils.request
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.prefs
 import kotlinx.coroutines.Dispatchers
@@ -59,9 +63,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import okhttp3.Credentials
 import okhttp3.Request
-import org.chromium.net.CronetEngine
-import org.chromium.net.CronetProvider
-import org.chromium.net.QuicOptions
 import org.json.JSONArray
 import org.json.JSONException
 import java.io.FileInputStream
@@ -128,176 +129,186 @@ class MediaPlayerService : BasePlaybackService() {
             created = true
             val rewindMs = (prefs().getString(C.PLAYER_REWIND, "10")?.toLongOrNull() ?: 10) * 1000
             val fastForwardMs = (prefs().getString(C.PLAYER_FORWARD, "10")?.toLongOrNull() ?: 10) * 1000
-            val sessionCallback = object : MediaSession.Callback() {
-                override fun onPrepare() {
-                    player?.prepareAsync()
-                }
-
-                override fun onPlay() {
-                    player?.let { player ->
-                        if (player.isPlaying) {
-                            player.pause()
-                        } else {
-                            player.start()
-                        }
-                        updatePlayingState()
-                        playerListener?.onIsPlayingChanged()
+            val sessionCallback = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                object : MediaSession.Callback() {
+                    override fun onPrepare() {
+                        player?.prepareAsync()
                     }
-                }
 
-                override fun onPause() {
-                    player?.let { player ->
-                        player.pause()
-                        updatePlayingState()
-                        playerListener?.onIsPlayingChanged()
-                    }
-                }
-
-                override fun onSkipToNext() {
-                    player?.let { player ->
-                        val position = player.currentPosition + fastForwardMs
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                        } else {
-                            player.seekTo(position.toInt())
-                        }
-                    }
-                }
-
-                override fun onSkipToPrevious() {
-                    player?.let { player ->
-                        val position = player.currentPosition - rewindMs
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                        } else {
-                            player.seekTo(position.toInt())
-                        }
-                    }
-                }
-
-                override fun onFastForward() {
-                    player?.let { player ->
-                        val position = player.currentPosition + fastForwardMs
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                        } else {
-                            player.seekTo(position.toInt())
-                        }
-                    }
-                }
-
-                override fun onRewind() {
-                    player?.let { player ->
-                        val position = player.currentPosition - rewindMs
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                        } else {
-                            player.seekTo(position.toInt())
-                        }
-                    }
-                }
-
-                override fun onStop() {
-                    player?.let { player ->
-                        player.stop()
-                        updatePlayingState()
-                        playerListener?.onIsPlayingChanged()
-                    }
-                }
-
-                override fun onSeekTo(pos: Long) {
-                    player?.let { player ->
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            player.seekTo(pos, MediaPlayer.SEEK_CLOSEST)
-                        } else {
-                            player.seekTo(pos.toInt())
-                        }
-                    }
-                }
-
-                override fun onSetPlaybackSpeed(speed: Float) {
-                    player?.let { player ->
-                        player.setPlaybackSpeedCompat(speed)
-                        playerListener?.onSpeedChanged(speed)
-                    }
-                }
-
-                override fun onCustomAction(action: String, extras: Bundle?) {
-                    player?.let { player ->
-                        when (action) {
-                            INTENT_REWIND -> {
-                                val position = player.currentPosition - rewindMs
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                    player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                                } else {
-                                    player.seekTo(position.toInt())
-                                }
-                            }
-                            INTENT_FAST_FORWARD -> {
-                                val position = player.currentPosition + fastForwardMs
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                    player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                                } else {
-                                    player.seekTo(position.toInt())
-                                }
-                            }
-                        }
-                    }
-                }
-
-                override fun onMediaButtonEvent(mediaButtonIntent: Intent): Boolean {
-                    val eventHandled = super.onMediaButtonEvent(mediaButtonIntent)
-                    return if (eventHandled) {
-                        true
-                    } else {
-                        if (mediaButtonIntent.action == Intent.ACTION_MEDIA_BUTTON) {
-                            val keyEvent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
+                    override fun onPlay() {
+                        player?.let { player ->
+                            if (player.isPlaying) {
+                                player.pause()
                             } else {
-                                @Suppress("DEPRECATION")
-                                mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT)
+                                player.start()
                             }
-                            if (keyEvent != null && keyEvent.action == KeyEvent.ACTION_DOWN) {
-                                when (keyEvent.keyCode) {
-                                    KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
-                                        player?.let { player ->
-                                            val position = player.currentPosition - rewindMs
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                                player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                                            } else {
-                                                player.seekTo(position.toInt())
-                                            }
-                                        }
-                                        true
+                            updatePlayingState()
+                            playerListener?.onIsPlayingChanged()
+                        }
+                    }
+
+                    override fun onPause() {
+                        player?.let { player ->
+                            player.pause()
+                            updatePlayingState()
+                            playerListener?.onIsPlayingChanged()
+                        }
+                    }
+
+                    override fun onSkipToNext() {
+                        player?.let { player ->
+                            val position = player.currentPosition + fastForwardMs
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
+                            } else {
+                                player.seekTo(position.toInt())
+                            }
+                        }
+                    }
+
+                    override fun onSkipToPrevious() {
+                        player?.let { player ->
+                            val position = player.currentPosition - rewindMs
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
+                            } else {
+                                player.seekTo(position.toInt())
+                            }
+                        }
+                    }
+
+                    override fun onFastForward() {
+                        player?.let { player ->
+                            val position = player.currentPosition + fastForwardMs
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
+                            } else {
+                                player.seekTo(position.toInt())
+                            }
+                        }
+                    }
+
+                    override fun onRewind() {
+                        player?.let { player ->
+                            val position = player.currentPosition - rewindMs
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
+                            } else {
+                                player.seekTo(position.toInt())
+                            }
+                        }
+                    }
+
+                    override fun onStop() {
+                        player?.let { player ->
+                            player.stop()
+                            updatePlayingState()
+                            playerListener?.onIsPlayingChanged()
+                        }
+                    }
+
+                    override fun onSeekTo(pos: Long) {
+                        player?.let { player ->
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                player.seekTo(pos, MediaPlayer.SEEK_CLOSEST)
+                            } else {
+                                player.seekTo(pos.toInt())
+                            }
+                        }
+                    }
+
+                    override fun onSetPlaybackSpeed(speed: Float) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            player?.let { player ->
+                                val params = PlaybackParams()
+                                params.speed = speed
+                                player.playbackParams = params
+                                playerListener?.onSpeedChanged(speed)
+                            }
+                        }
+                    }
+
+                    override fun onCustomAction(action: String, extras: Bundle?) {
+                        player?.let { player ->
+                            when (action) {
+                                INTENT_REWIND -> {
+                                    val position = player.currentPosition - rewindMs
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
+                                    } else {
+                                        player.seekTo(position.toInt())
                                     }
-                                    KeyEvent.KEYCODE_MEDIA_NEXT -> {
-                                        player?.let { player ->
-                                            val position = player.currentPosition + fastForwardMs
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                                player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
-                                            } else {
-                                                player.seekTo(position.toInt())
-                                            }
-                                        }
-                                        true
-                                    }
-                                    else -> false
                                 }
+                                INTENT_FAST_FORWARD -> {
+                                    val position = player.currentPosition + fastForwardMs
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
+                                    } else {
+                                        player.seekTo(position.toInt())
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    override fun onMediaButtonEvent(mediaButtonIntent: Intent): Boolean {
+                        val eventHandled = super.onMediaButtonEvent(mediaButtonIntent)
+                        return if (eventHandled) {
+                            true
+                        } else {
+                            if (mediaButtonIntent.action == Intent.ACTION_MEDIA_BUTTON) {
+                                val keyEvent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT)
+                                }
+                                if (keyEvent != null && keyEvent.action == KeyEvent.ACTION_DOWN) {
+                                    when (keyEvent.keyCode) {
+                                        KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+                                            player?.let { player ->
+                                                val position = player.currentPosition - rewindMs
+                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                                    player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
+                                                } else {
+                                                    player.seekTo(position.toInt())
+                                                }
+                                            }
+                                            true
+                                        }
+                                        KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                                            player?.let { player ->
+                                                val position = player.currentPosition + fastForwardMs
+                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                                    player.seekTo(position, MediaPlayer.SEEK_CLOSEST)
+                                                } else {
+                                                    player.seekTo(position.toInt())
+                                                }
+                                            }
+                                            true
+                                        }
+                                        else -> false
+                                    }
+                                } else false
                             } else false
-                        } else false
+                        }
                     }
                 }
+            } else {
+                null
             }
             val player = MediaPlayer().apply {
                 setWakeMode(this@MediaPlayerService, PowerManager.PARTIAL_WAKE_LOCK)
             }
             this.player = player
-            player.setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
-                    .build()
-            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                player.setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+                        .build()
+                )
+            }
             player.setOnPreparedListener { player ->
                 seekPosition?.let {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -353,22 +364,24 @@ class MediaPlayerService : BasePlaybackService() {
                 wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "MediaPlayer:WifiLock")
             }
             wifiLock?.acquire()
-            val session = MediaSession(this, "MediaPlayerService")
-            this.session = session
-            session.setCallback(sessionCallback)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                try {
-                    session.setMediaButtonBroadcastReceiver(ComponentName(this, MediaButtonReceiver::class.java))
-                } catch (e: IllegalArgumentException) {
-                    // https://github.com/androidx/media/issues/1730
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val session = MediaSession(this, "MediaPlayerService")
+                this.session = session
+                session.setCallback(sessionCallback)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    try {
+                        session.setMediaButtonBroadcastReceiver(ComponentName(this, MediaButtonReceiver::class.java))
+                    } catch (e: IllegalArgumentException) {
+                        // https://github.com/androidx/media/issues/1730
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    session.setMediaButtonReceiver(
+                        PendingIntent.getBroadcast(this, 0, Intent(Intent.ACTION_MEDIA_BUTTON).setClass(this, MediaButtonReceiver::class.java), PendingIntent.FLAG_MUTABLE)
+                    )
                 }
-            } else {
-                @Suppress("DEPRECATION")
-                session.setMediaButtonReceiver(
-                    PendingIntent.getBroadcast(this, 0, Intent(Intent.ACTION_MEDIA_BUTTON).setClass(this, MediaButtonReceiver::class.java), PendingIntent.FLAG_MUTABLE)
-                )
+                session.isActive = true
             }
-            session.isActive = true
             notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             val channelId = getString(R.string.notification_playback_channel_id)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && notificationManager?.getNotificationChannel(channelId) == null) {
@@ -421,35 +434,33 @@ class MediaPlayerService : BasePlaybackService() {
                                 VideoQuality(name, url = url)
                             }
                             qualities = list
-                                .sortedByDescending {
-                                    it.bitrate
-                                }
-                                .sortedByDescending {
-                                    it.name?.substringAfter("p", "")?.takeWhile { it.isDigit() }?.toIntOrNull()
-                                }
-                                .sortedByDescending {
-                                    it.name?.substringBefore("p", "")?.takeWhile { it.isDigit() }?.toIntOrNull()
-                                }
+                                .sortedWith(
+                                    compareByDescending<VideoQuality> { it.bitrate }
+                                        .thenByDescending { it.frameRate }
+                                        .thenByDescending { it.resolution }
+                                )
                                 .toMutableList().apply {
                                     find { it.name.equals("source", true) }?.let { source ->
                                         remove(source)
-                                        add(0, VideoQuality(SOURCE_QUALITY, source.codecs, source.bitrate, source.url))
+                                        add(0, VideoQuality(VideoQuality.SOURCE_QUALITY, source.resolution, source.frameRate, source.bitrate, source.codecs, source.url))
                                     }
                                     val audio = find { it.name?.startsWith("audio", true) == true }
                                     audio?.let { remove(it) }
-                                    add(VideoQuality(AUDIO_ONLY_QUALITY, audio?.codecs, audio?.bitrate, audio?.url))
+                                    add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY, audio?.resolution, audio?.frameRate, audio?.bitrate, audio?.codecs, audio?.url))
                                 }
                             quality = qualities?.firstOrNull()
                             serviceListener?.changePlayerMode()
                             val url = quality?.url
                             if (url != null) {
                                 player?.let { player ->
-                                    serviceListener?.changeSurfaceVisibility(quality?.name != AUDIO_ONLY_QUALITY)
+                                    serviceListener?.changeSurfaceVisibility(quality?.name != VideoQuality.AUDIO_ONLY_QUALITY)
                                     player.reset()
                                     player.setDataSource(url)
                                     val volume = prefs().getInt(C.PLAYER_VOLUME, 100) / 100f
                                     player.setVolume(volume, volume)
-                                    player.setPlaybackSpeedCompat(prefs().getFloat(C.PLAYER_SPEED, 1f))
+                                    val params = PlaybackParams()
+                                    params.speed = prefs().getFloat(C.PLAYER_SPEED, 1f)
+                                    player.playbackParams = params
                                     seekPosition = savedPosition ?: 0
                                     startPlayer = !restorePauseState || !paused
                                     player.prepareAsync()
@@ -479,8 +490,8 @@ class MediaPlayerService : BasePlaybackService() {
                             serviceListener?.started()
                             if (qualities.isNullOrEmpty()) {
                                 qualities = listOf(
-                                    VideoQuality(SOURCE_QUALITY, url = video.url),
-                                    VideoQuality(AUDIO_ONLY_QUALITY),
+                                    VideoQuality(VideoQuality.SOURCE_QUALITY, url = video.url),
+                                    VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY),
                                 )
                                 setDefaultQuality()
                             }
@@ -488,12 +499,16 @@ class MediaPlayerService : BasePlaybackService() {
                             val url = quality?.url ?: qualities?.firstOrNull()?.url
                             if (url != null) {
                                 player?.let { player ->
-                                    serviceListener?.changeSurfaceVisibility(quality?.name != AUDIO_ONLY_QUALITY)
+                                    serviceListener?.changeSurfaceVisibility(quality?.name != VideoQuality.AUDIO_ONLY_QUALITY)
                                     player.reset()
                                     player.setDataSource(this@MediaPlayerService, url.toUri())
                                     val volume = prefs().getInt(C.PLAYER_VOLUME, 100) / 100f
                                     player.setVolume(volume, volume)
-                                    player.setPlaybackSpeedCompat(prefs().getFloat(C.PLAYER_SPEED, 1f))
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                        val params = PlaybackParams()
+                                        params.speed = prefs().getFloat(C.PLAYER_SPEED, 1f)
+                                        player.playbackParams = params
+                                    }
                                     seekPosition = playbackPosition
                                     player.prepareAsync()
                                     loaded = true
@@ -625,41 +640,7 @@ class MediaPlayerService : BasePlaybackService() {
                             }
                             networkLibrary == C.CRONET && xtraModule.cronetEngine.value != null -> {
                                 val cronetEngine = if (useProxy) {
-                                    if (CronetProvider.getAllProviders(application).any { it.isEnabled }) {
-                                        val proxyHeaders = if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                                            mapOf("Proxy-Authorization" to Base64.encodeToString("$proxyUser:$proxyPassword".toByteArray(), Base64.NO_WRAP)).entries.toList()
-                                        } else emptyList()
-                                        val builder = CronetEngine.Builder(application).apply {
-                                            val userAgent = "Cronet/" + defaultUserAgent.substringAfter("Cronet/", "").substringBefore(')')
-                                            setUserAgent(userAgent)
-                                            @QuicOptions.Experimental
-                                            setQuicOptions(QuicOptions.builder().setHandshakeUserAgent(userAgent).build())
-                                        }
-                                        try {
-                                            @org.chromium.net.ProxyOptions.Experimental
-                                            builder.setProxyOptions(org.chromium.net.ProxyOptions(
-                                                listOf(
-                                                    org.chromium.net.Proxy(
-                                                        org.chromium.net.Proxy.HTTP,
-                                                        proxyHost,
-                                                        proxyPort,
-                                                        xtraModule.cronetExecutor.value,
-                                                        object : org.chromium.net.Proxy.Callback() {
-                                                            override fun onBeforeTunnelRequest(request: Request) {
-                                                                request.proceed(proxyHeaders)
-                                                            }
-
-                                                            override fun onTunnelHeadersReceived(responseHeaders: List<Map.Entry<String?, String?>?>, statusCode: Int): Boolean {
-                                                                return true
-                                                            }
-                                                        }
-                                                    )
-                                                )
-                                            ))
-                                        } catch (e: UnsupportedOperationException) {
-                                            null
-                                        }?.build()
-                                    } else null
+                                    null
                                 } else {
                                     xtraModule.cronetEngine.value!!
                                 }
@@ -729,7 +710,15 @@ class MediaPlayerService : BasePlaybackService() {
                     val responseCode = response?.second
                     if (responseCode != null) {
                         val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                        val isNetworkAvailable = connectivityManager.isNetworkAvailableCompat()
+                        val isNetworkAvailable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
+                            networkCapabilities != null
+                                    && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                                    && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                        } else @Suppress("DEPRECATION") {
+                            val activeNetwork = connectivityManager.activeNetworkInfo ?: connectivityManager.getNetworkInfo(ConnectivityManager.TYPE_VPN)
+                            activeNetwork?.isConnectedOrConnecting == true
+                        }
                         if (isNetworkAvailable) {
                             when {
                                 responseCode == 404 -> {
@@ -757,43 +746,45 @@ class MediaPlayerService : BasePlaybackService() {
                         val names = Regex("IVS-NAME=\"(.+?)\"").findAll(playlist).mapNotNull { it.groups[1]?.value }.toMutableList().ifEmpty {
                             Regex("NAME=\"(.+?)\"").findAll(playlist).mapNotNull { it.groups[1]?.value }.toMutableList()
                         }
-                        val codecs = Regex("CODECS=\"(.+?)\"").findAll(playlist).mapNotNull { it.groups[1]?.value }.toMutableList()
+                        val resolutions = Regex("RESOLUTION=(\\d+x\\d+)").findAll(playlist).mapNotNull { it.groups[1]?.value }.toMutableList()
+                        val frameRates = Regex("FRAME-RATE=([\\d.]+)\\b").findAll(playlist).mapNotNull { it.groups[1]?.value?.toFloatOrNull() }.toMutableList()
                         val bitrates = Regex("BANDWIDTH=(\\d+)\\b").findAll(playlist).mapNotNull { it.groups[1]?.value?.toIntOrNull() }.toMutableList()
+                        val codecs = Regex("CODECS=\"(.+?)\"").findAll(playlist).mapNotNull { it.groups[1]?.value }.toMutableList()
                         val urls = Regex("https://.*\\.m3u8").findAll(playlist).map(MatchResult::value).toMutableList()
                         val list = names.mapIndexedNotNull { index, name ->
                             urls.getOrNull(index)?.let { url ->
-                                VideoQuality(name, codecs.getOrNull(index), bitrates.getOrNull(index), url)
+                                VideoQuality(name, resolutions.getOrNull(index)?.substringBefore('x')?.toIntOrNull(), frameRates.getOrNull(index), bitrates.getOrNull(index), codecs.getOrNull(index), url)
                             }
                         }
-                        qualities = list.asSequence()
-                            .sortedByDescending {
-                                it.bitrate
-                            }
-                            .sortedByDescending {
-                                it.name?.substringAfter("p", "")?.takeWhile { it.isDigit() }?.toIntOrNull()
-                            }
-                            .sortedByDescending {
-                                it.name?.substringBefore("p", "")?.takeWhile { it.isDigit() }?.toIntOrNull()
-                            }
+                        qualities = list
+                            .sortedWith(
+                                compareByDescending<VideoQuality> { it.bitrate }
+                                    .thenByDescending { it.frameRate }
+                                    .thenByDescending { it.resolution }
+                            )
                             .toMutableList().apply {
                                 find { it.name.equals("source", true) }?.let { source ->
                                     remove(source)
-                                    add(0, VideoQuality(SOURCE_QUALITY, source.codecs, source.bitrate, source.url))
+                                    add(0, VideoQuality(VideoQuality.SOURCE_QUALITY, source.resolution, source.frameRate, source.bitrate, source.codecs, source.url))
                                 }
                                 val audio = find { it.name?.startsWith("audio", true) == true }
                                 audio?.let { remove(it) }
-                                add(VideoQuality(AUDIO_ONLY_QUALITY, audio?.codecs, audio?.bitrate, audio?.url))
-                                add(VideoQuality(CHAT_ONLY_QUALITY))
+                                add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY, audio?.resolution, audio?.frameRate, audio?.bitrate, audio?.codecs, audio?.url))
+                                add(VideoQuality(VideoQuality.CHAT_ONLY_QUALITY))
                             }
                         setDefaultQuality()
                         serviceListener?.changePlayerMode()
                         quality?.url?.let { url ->
-                            serviceListener?.changeSurfaceVisibility(quality?.name != AUDIO_ONLY_QUALITY)
+                            serviceListener?.changeSurfaceVisibility(quality?.name != VideoQuality.AUDIO_ONLY_QUALITY)
                             player.reset()
                             player.setDataSource(url)
                             val volume = prefs().getInt(C.PLAYER_VOLUME, 100) / 100f
                             player.setVolume(volume, volume)
-                            player.setPlaybackSpeedCompat(prefs().getFloat(C.PLAYER_SPEED, 1f))
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                val params = PlaybackParams()
+                                params.speed = prefs().getFloat(C.PLAYER_SPEED, 1f)
+                                player.playbackParams = params
+                            }
                             seekPosition = savedPosition ?: 0
                             startPlayer = !restorePauseState || !paused
                             player.prepareAsync()
@@ -899,7 +890,15 @@ class MediaPlayerService : BasePlaybackService() {
                     val responseCode = response?.second
                     if (responseCode != null) {
                         val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                        val isNetworkAvailable = connectivityManager.isNetworkAvailableCompat()
+                        val isNetworkAvailable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
+                            networkCapabilities != null
+                                    && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                                    && networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                        } else @Suppress("DEPRECATION") {
+                            val activeNetwork = connectivityManager.activeNetworkInfo ?: connectivityManager.getNetworkInfo(ConnectivityManager.TYPE_VPN)
+                            activeNetwork?.isConnectedOrConnecting == true
+                        }
                         if (isNetworkAvailable) {
                             when {
                                 !skipAccessToken && responseCode != 0 -> {
@@ -909,36 +908,36 @@ class MediaPlayerService : BasePlaybackService() {
                                         val list = urls.map {
                                             VideoQuality(it.key, url = it.value)
                                         }
-                                        qualities = list.asSequence()
-                                            .sortedByDescending {
-                                                it.bitrate
-                                            }
-                                            .sortedByDescending {
-                                                it.name?.substringAfter("p", "")?.takeWhile { it.isDigit() }?.toIntOrNull()
-                                            }
-                                            .sortedByDescending {
-                                                it.name?.substringBefore("p", "")?.takeWhile { it.isDigit() }?.toIntOrNull()
-                                            }
+                                        qualities = list
+                                            .sortedWith(
+                                                compareByDescending<VideoQuality> { it.bitrate }
+                                                    .thenByDescending { it.frameRate }
+                                                    .thenByDescending { it.resolution }
+                                            )
                                             .toMutableList().apply {
                                                 find { it.name.equals("source", true) }?.let { source ->
                                                     remove(source)
-                                                    add(0, VideoQuality(SOURCE_QUALITY, source.codecs, source.bitrate, source.url))
+                                                    add(0, VideoQuality(VideoQuality.SOURCE_QUALITY, source.resolution, source.frameRate, source.bitrate, source.codecs, source.url))
                                                 }
                                                 val audio = find { it.name?.startsWith("audio", true) == true }
                                                 audio?.let { remove(it) }
-                                                add(VideoQuality(AUDIO_ONLY_QUALITY, audio?.codecs, audio?.bitrate, audio?.url))
+                                                add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY, audio?.resolution, audio?.frameRate, audio?.bitrate, audio?.codecs, audio?.url))
                                             }
                                         quality = qualities?.firstOrNull()
                                         serviceListener?.changePlayerMode()
                                         val url = quality?.url
                                         if (url != null) {
                                             val playbackPosition = player.currentPosition.toLong()
-                                            serviceListener?.changeSurfaceVisibility(quality?.name != AUDIO_ONLY_QUALITY)
+                                            serviceListener?.changeSurfaceVisibility(quality?.name != VideoQuality.AUDIO_ONLY_QUALITY)
                                             player.reset()
                                             player.setDataSource(url)
                                             val volume = prefs().getInt(C.PLAYER_VOLUME, 100) / 100f
                                             player.setVolume(volume, volume)
-                                            player.setPlaybackSpeedCompat(prefs().getFloat(C.PLAYER_SPEED, 1f))
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                                val params = PlaybackParams()
+                                                params.speed = prefs().getFloat(C.PLAYER_SPEED, 1f)
+                                                player.playbackParams = params
+                                            }
                                             seekPosition = playbackPosition
                                             player.prepareAsync()
                                             loaded = true
@@ -963,8 +962,10 @@ class MediaPlayerService : BasePlaybackService() {
                         val names = Regex("IVS-NAME=\"(.+?)\"").findAll(playlist).mapNotNull { it.groups[1]?.value }.toMutableList().ifEmpty {
                             Regex("NAME=\"(.+?)\"").findAll(playlist).mapNotNull { it.groups[1]?.value }.toMutableList()
                         }
-                        val codecs = Regex("CODECS=\"(.+?)\"").findAll(playlist).mapNotNull { it.groups[1]?.value }.toMutableList()
+                        val resolutions = Regex("RESOLUTION=(\\d+x\\d+)").findAll(playlist).mapNotNull { it.groups[1]?.value }.toMutableList()
+                        val frameRates = Regex("FRAME-RATE=([\\d.]+)\\b").findAll(playlist).mapNotNull { it.groups[1]?.value?.toFloatOrNull() }.toMutableList()
                         val bitrates = Regex("BANDWIDTH=(\\d+)\\b").findAll(playlist).mapNotNull { it.groups[1]?.value?.toIntOrNull() }.toMutableList()
+                        val codecs = Regex("CODECS=\"(.+?)\"").findAll(playlist).mapNotNull { it.groups[1]?.value }.toMutableList()
                         val urls = Regex("https://.*\\.m3u8").findAll(playlist).map(MatchResult::value).toMutableList()
                         playlist.lines().filter { it.startsWith("#EXT-X-SESSION-DATA") }.let { list ->
                             if (list.isNotEmpty()) {
@@ -1005,16 +1006,24 @@ class MediaPlayerService : BasePlaybackService() {
                                                                 }
                                                                 if (!skip) {
                                                                     val name = obj.optString("IVS_NAME")
-                                                                    val codec = obj.optString("CODECS")
+                                                                    val resolution = obj.optString("RESOLUTION")
+                                                                    val frameRate = obj.optString("FRAME-RATE").toFloatOrNull()
                                                                     val bitrate = obj.optInt("BANDWIDTH")
+                                                                    val codec = obj.optString("CODECS")
                                                                     val newVariantId = obj.optString("STABLE-VARIANT-ID")
                                                                     if (!name.isNullOrBlank() && !newVariantId.isNullOrBlank()) {
                                                                         names.add(name)
-                                                                        if (!codec.isNullOrBlank()) {
-                                                                            codecs.add(codec)
+                                                                        if (!resolution.isNullOrBlank()) {
+                                                                            resolutions.add(resolution)
+                                                                        }
+                                                                        if (frameRate != null && frameRate > 0) {
+                                                                            frameRates.add(frameRate)
                                                                         }
                                                                         if (bitrate > 0) {
                                                                             bitrates.add(bitrate)
+                                                                        }
+                                                                        if (!codec.isNullOrBlank()) {
+                                                                            codecs.add(codec)
                                                                         }
                                                                         urls.add(url.replace(
                                                                             "$variantId/index-",
@@ -1038,37 +1047,37 @@ class MediaPlayerService : BasePlaybackService() {
                         }
                         val list = names.mapIndexedNotNull { index, name ->
                             urls.getOrNull(index)?.let { url ->
-                                VideoQuality(name, codecs.getOrNull(index), bitrates.getOrNull(index), url)
+                                VideoQuality(name, resolutions.getOrNull(index)?.substringBefore('x')?.toIntOrNull(), frameRates.getOrNull(index), bitrates.getOrNull(index), codecs.getOrNull(index), url)
                             }
                         }
-                        qualities = list.asSequence()
-                            .sortedByDescending {
-                                it.bitrate
-                            }
-                            .sortedByDescending {
-                                it.name?.substringAfter("p", "")?.takeWhile { it.isDigit() }?.toIntOrNull()
-                            }
-                            .sortedByDescending {
-                                it.name?.substringBefore("p", "")?.takeWhile { it.isDigit() }?.toIntOrNull()
-                            }
+                        qualities = list
+                            .sortedWith(
+                                compareByDescending<VideoQuality> { it.bitrate }
+                                    .thenByDescending { it.frameRate }
+                                    .thenByDescending { it.resolution }
+                            )
                             .toMutableList().apply {
                                 find { it.name.equals("source", true) }?.let { source ->
                                     remove(source)
-                                    add(0, VideoQuality(SOURCE_QUALITY, source.codecs, source.bitrate, source.url))
+                                    add(0, VideoQuality(VideoQuality.SOURCE_QUALITY, source.resolution, source.frameRate, source.bitrate, source.codecs, source.url))
                                 }
                                 val audio = find { it.name?.startsWith("audio", true) == true }
                                 audio?.let { remove(it) }
-                                add(VideoQuality(AUDIO_ONLY_QUALITY, audio?.codecs, audio?.bitrate, audio?.url))
+                                add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY, audio?.resolution, audio?.frameRate, audio?.bitrate, audio?.codecs, audio?.url))
                             }
                         setDefaultQuality()
                         serviceListener?.changePlayerMode()
                         quality?.url?.let { url ->
-                            serviceListener?.changeSurfaceVisibility(quality?.name != AUDIO_ONLY_QUALITY)
+                            serviceListener?.changeSurfaceVisibility(quality?.name != VideoQuality.AUDIO_ONLY_QUALITY)
                             player.reset()
                             player.setDataSource(url)
                             val volume = prefs().getInt(C.PLAYER_VOLUME, 100) / 100f
                             player.setVolume(volume, volume)
-                            player.setPlaybackSpeedCompat(prefs().getFloat(C.PLAYER_SPEED, 1f))
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                val params = PlaybackParams()
+                                params.speed = prefs().getFloat(C.PLAYER_SPEED, 1f)
+                                player.playbackParams = params
+                            }
                             seekPosition = playbackPosition
                             startPlayer = !restorePauseState || !paused
                             player.prepareAsync()
@@ -1185,17 +1194,13 @@ class MediaPlayerService : BasePlaybackService() {
                         }
                     }
                     qualities = filtered
-                        .sortedByDescending {
-                            it.bitrate
-                        }
-                        .sortedByDescending {
-                            it.name?.substringAfter("p", "")?.takeWhile { it.isDigit() }?.toIntOrNull()
-                        }
-                        .sortedByDescending {
-                            it.name?.substringBefore("p", "")?.takeWhile { it.isDigit() }?.toIntOrNull()
-                        }
+                        .sortedWith(
+                            compareByDescending<VideoQuality> { it.bitrate }
+                                .thenByDescending { it.frameRate }
+                                .thenByDescending { it.resolution }
+                        )
                         .toMutableList().apply {
-                            add(VideoQuality(AUDIO_ONLY_QUALITY))
+                            add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY))
                         }
                     setDefaultQuality()
                 }
@@ -1204,12 +1209,16 @@ class MediaPlayerService : BasePlaybackService() {
             val url = quality?.url ?: qualities?.firstOrNull()?.url
             if (url != null) {
                 player?.let { player ->
-                    serviceListener?.changeSurfaceVisibility(quality?.name != AUDIO_ONLY_QUALITY)
+                    serviceListener?.changeSurfaceVisibility(quality?.name != VideoQuality.AUDIO_ONLY_QUALITY)
                     player.reset()
                     player.setDataSource(url)
                     val volume = prefs().getInt(C.PLAYER_VOLUME, 100) / 100f
                     player.setVolume(volume, volume)
-                    player.setPlaybackSpeedCompat(prefs().getFloat(C.PLAYER_SPEED, 1f))
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        val params = PlaybackParams()
+                        params.speed = prefs().getFloat(C.PLAYER_SPEED, 1f)
+                        player.playbackParams = params
+                    }
                     seekPosition = savedPosition ?: 0
                     startPlayer = !restorePauseState || !paused
                     player.prepareAsync()
@@ -1246,7 +1255,7 @@ class MediaPlayerService : BasePlaybackService() {
         quality?.let { quality ->
             player?.let { player ->
                 when (quality.name) {
-                    AUDIO_ONLY_QUALITY -> {
+                    VideoQuality.AUDIO_ONLY_QUALITY -> {
                         serviceListener?.changeSurfaceVisibility(false)
                         quality.url?.let {
                             val position = player.currentPosition.toLong()
@@ -1260,7 +1269,7 @@ class MediaPlayerService : BasePlaybackService() {
                             player.prepareAsync()
                         }
                     }
-                    CHAT_ONLY_QUALITY -> {
+                    VideoQuality.CHAT_ONLY_QUALITY -> {
                         player.stop()
                         updatePlayingState()
                         playerListener?.onIsPlayingChanged()
@@ -1280,8 +1289,13 @@ class MediaPlayerService : BasePlaybackService() {
                         serviceListener?.changeSurfaceVisibility(true)
                     }
                 }
-                val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                val cellular = connectivityManager.isActiveNetworkCellularCompat()
+                val cellular = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                    val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
+                    networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
+                } else {
+                    false
+                }
                 if ((!cellular && prefs().getString(C.PLAYER_DEFAULT_QUALITY, "saved") == "saved") || (cellular && prefs().getString(C.PLAYER_DEFAULT_CELLULAR_QUALITY, "saved") == "saved")) {
                     prefs().edit { putString(C.PLAYER_QUALITY, quality.name) }
                 }
@@ -1290,7 +1304,7 @@ class MediaPlayerService : BasePlaybackService() {
     }
 
     fun restartPlayer() {
-        if (quality?.name != CHAT_ONLY_QUALITY) {
+        if (quality?.name != VideoQuality.CHAT_ONLY_QUALITY) {
             lifecycleScope.launch {
                 loadStream(restart = true)
             }
@@ -1299,10 +1313,10 @@ class MediaPlayerService : BasePlaybackService() {
 
     fun startAudioOnly() {
         player?.let { player ->
-            if (quality?.name != AUDIO_ONLY_QUALITY) {
+            if (quality?.name != VideoQuality.AUDIO_ONLY_QUALITY) {
                 restoreQuality = true
                 previousQuality = quality
-                quality = qualities?.find { it.name == AUDIO_ONLY_QUALITY }
+                quality = qualities?.find { it.name == VideoQuality.AUDIO_ONLY_QUALITY }
                 quality?.let { quality ->
                     if (prefs().getBoolean(C.PLAYER_DISABLE_BACKGROUND_VIDEO, true)) {
                         serviceListener?.changeSurfaceVisibility(false)
@@ -1327,15 +1341,22 @@ class MediaPlayerService : BasePlaybackService() {
 
     fun stop(isInPIPMode: Boolean) {
         player?.let { player ->
-            val isInteractive = (getSystemService(POWER_SERVICE) as PowerManager).isInteractive
+            val isInteractive = (getSystemService(POWER_SERVICE) as PowerManager).let {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+                    it.isInteractive
+                } else {
+                    @Suppress("DEPRECATION")
+                    it.isScreenOn
+                }
+            }
             if ((!isInPIPMode && isInteractive && prefs().getBoolean(C.PLAYER_BACKGROUND_AUDIO, true))
                 || (!isInPIPMode && !isInteractive && prefs().getBoolean(C.PLAYER_BACKGROUND_AUDIO_LOCKED, true))
                 || (isInPIPMode && isInteractive && prefs().getBoolean(C.PLAYER_BACKGROUND_AUDIO_PIP_CLOSED, false))
                 || (isInPIPMode && !isInteractive && prefs().getBoolean(C.PLAYER_BACKGROUND_AUDIO_PIP_LOCKED, true))) {
-                if (player.isPlaying && quality?.name != AUDIO_ONLY_QUALITY) {
+                if (player.isPlaying && quality?.name != VideoQuality.AUDIO_ONLY_QUALITY) {
                     restoreQuality = true
                     previousQuality = quality
-                    quality = qualities?.find { it.name == AUDIO_ONLY_QUALITY }
+                    quality = qualities?.find { it.name == VideoQuality.AUDIO_ONLY_QUALITY }
                     quality?.let { quality ->
                         if (prefs().getBoolean(C.PLAYER_DISABLE_BACKGROUND_VIDEO, true)) {
                             serviceListener?.changeSurfaceVisibility(false)
@@ -1362,135 +1383,148 @@ class MediaPlayerService : BasePlaybackService() {
     }
 
     private fun updatePlaybackState() {
-        player?.let { player ->
-            session?.setPlaybackState(
-                PlaybackState.Builder().apply {
-                    setState(
-                        if (!player.isPlaying) {
-                            PlaybackState.STATE_PAUSED
-                        } else {
-                            PlaybackState.STATE_PLAYING
-                        },
-                        player.currentPosition.toLong(),
-                        if (player.isPlaying) {
-                            player.getPlaybackSpeedCompat()
-                        } else {
-                            0f
-                        }
-                    )
-                    setActions(
-                        (PlaybackState.ACTION_STOP
-                                or PlaybackState.ACTION_PAUSE
-                                or PlaybackState.ACTION_PLAY
-                                or PlaybackState.ACTION_REWIND
-                                or PlaybackState.ACTION_FAST_FORWARD
-                                or PlaybackState.ACTION_SET_RATING
-                                or PlaybackState.ACTION_PLAY_PAUSE
-                                or PlaybackState.ACTION_SEEK_TO).let {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                (it or PlaybackState.ACTION_PREPARE).let {
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                        it or PlaybackState.ACTION_SET_PLAYBACK_SPEED
-                                    } else {
-                                        it
-                                    }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            player?.let { player ->
+                session?.setPlaybackState(
+                    PlaybackState.Builder().apply {
+                        setState(
+                            if (!player.isPlaying) {
+                                PlaybackState.STATE_PAUSED
+                            } else {
+                                PlaybackState.STATE_PLAYING
+                            },
+                            player.currentPosition.toLong(),
+                            if (player.isPlaying) {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                    player.playbackParams.speed
+                                } else {
+                                    1f
                                 }
                             } else {
-                                it
+                                0f
                             }
-                        }
-                    )
-                    addCustomAction(INTENT_REWIND, ContextCompat.getString(this@MediaPlayerService, R.string.rewind), androidx.media3.session.R.drawable.media3_icon_rewind)
-                    addCustomAction(INTENT_FAST_FORWARD, ContextCompat.getString(this@MediaPlayerService, R.string.forward), androidx.media3.session.R.drawable.media3_icon_fast_forward)
-                }.build()
-            )
+                        )
+                        setActions(
+                            (PlaybackState.ACTION_STOP
+                                    or PlaybackState.ACTION_PAUSE
+                                    or PlaybackState.ACTION_PLAY
+                                    or PlaybackState.ACTION_REWIND
+                                    or PlaybackState.ACTION_FAST_FORWARD
+                                    or PlaybackState.ACTION_SET_RATING
+                                    or PlaybackState.ACTION_PLAY_PAUSE
+                                    or PlaybackState.ACTION_SEEK_TO).let {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                    (it or PlaybackState.ACTION_PREPARE).let {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                            it or PlaybackState.ACTION_SET_PLAYBACK_SPEED
+                                        } else {
+                                            it
+                                        }
+                                    }
+                                } else {
+                                    it
+                                }
+                            }
+                        )
+                        addCustomAction(INTENT_REWIND, ContextCompat.getString(this@MediaPlayerService, R.string.rewind), androidx.media3.session.R.drawable.media3_notification_seek_back)
+                        addCustomAction(INTENT_FAST_FORWARD, ContextCompat.getString(this@MediaPlayerService, R.string.forward), androidx.media3.session.R.drawable.media3_notification_seek_forward)
+                    }.build()
+                )
+            }
+        } else {
+            updateNotification()
         }
     }
 
     private fun updateMetadata() {
-        val url = channelImage
-        val bitmap = if (!url.isNullOrBlank()) {
-            if (url == artworkUri && cachedBitmap != null) {
-                cachedBitmap
-            } else {
-                val networkLibrary = prefs().getString(C.NETWORK_LIBRARY, "OkHttp")
-                artworkUri = url
-                bitmapLoadJob?.cancel()
-                bitmapLoadJob = lifecycleScope.launch(Dispatchers.IO) {
-                    try {
-                        val scheme = url.toUri().scheme
-                        val response = if (scheme == "https" || scheme == "http") {
-                            when {
-                                networkLibrary == C.HTTP_ENGINE && xtraModule.httpEngine.value != null -> @SuppressLint("NewApi") {
-                                    val response = suspendCancellableCoroutine { continuation ->
-                                        val timeout = NetworkUtils.HttpEngineTimeout()
-                                        val request = xtraModule.httpEngine.value!!.newUrlRequestBuilder(
-                                            url,
-                                            xtraModule.cronetExecutor.value,
-                                            NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
-                                        ).build()
-                                        timeout.start(request, continuation)
-                                        request.start()
-                                        continuation.invokeOnCancellation {
-                                            request.cancel()
-                                            timeout.stop()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            val url = channelImage
+            val bitmap = if (!url.isNullOrBlank()) {
+                if (url == artworkUri && cachedBitmap != null) {
+                    cachedBitmap
+                } else {
+                    val networkLibrary = prefs().getString(C.NETWORK_LIBRARY, "OkHttp")
+                    artworkUri = url
+                    bitmapLoadJob?.cancel()
+                    bitmapLoadJob = lifecycleScope.launch(Dispatchers.IO) {
+                        try {
+                            val scheme = url.toUri().scheme
+                            val response = if (scheme == "https" || scheme == "http") {
+                                when {
+                                    networkLibrary == C.HTTP_ENGINE && xtraModule.httpEngine.value != null -> @SuppressLint("NewApi") {
+                                        val response = suspendCancellableCoroutine { continuation ->
+                                            val timeout = NetworkUtils.HttpEngineTimeout()
+                                            val request = xtraModule.httpEngine.value!!.newUrlRequestBuilder(
+                                                url,
+                                                xtraModule.cronetExecutor.value,
+                                                NetworkUtils.ByteArrayUrlCallback(continuation, timeout)
+                                            ).build()
+                                            timeout.start(request, continuation)
+                                            request.start()
+                                            continuation.invokeOnCancellation {
+                                                request.cancel()
+                                                timeout.stop()
+                                            }
                                         }
-                                    }
-                                    if (response.info.httpStatusCode in 200..299) {
-                                        response.body
-                                    } else null
-                                }
-                                networkLibrary == C.CRONET && xtraModule.cronetEngine.value != null -> {
-                                    val response = suspendCancellableCoroutine { continuation ->
-                                        val timeout = NetworkUtils.CronetTimeout()
-                                        val request = xtraModule.cronetEngine.value!!.newUrlRequestBuilder(
-                                            url,
-                                            NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                            xtraModule.cronetExecutor.value
-                                        ).build()
-                                        timeout.start(request, continuation)
-                                        request.start()
-                                        continuation.invokeOnCancellation {
-                                            request.cancel()
-                                            timeout.stop()
-                                        }
-                                    }
-                                    if (response.info.httpStatusCode in 200..299) {
-                                        response.body
-                                    } else null
-                                }
-                                else -> {
-                                    xtraModule.okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
-                                        if (response.isSuccessful) {
-                                            response.body.bytes()
+                                        if (response.info.httpStatusCode in 200..299) {
+                                            response.body
                                         } else null
                                     }
+                                    networkLibrary == C.CRONET && xtraModule.cronetEngine.value != null -> {
+                                        val response = suspendCancellableCoroutine { continuation ->
+                                            val timeout = NetworkUtils.CronetTimeout()
+                                            val request = xtraModule.cronetEngine.value!!.newUrlRequestBuilder(
+                                                url,
+                                                NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
+                                                xtraModule.cronetExecutor.value
+                                            ).build()
+                                            timeout.start(request, continuation)
+                                            request.start()
+                                            continuation.invokeOnCancellation {
+                                                request.cancel()
+                                                timeout.stop()
+                                            }
+                                        }
+                                        if (response.info.httpStatusCode in 200..299) {
+                                            response.body
+                                        } else null
+                                    }
+                                    else -> {
+                                        xtraModule.okHttpClient.value.newCall(Request.Builder().url(url).build()).executeAsync().use { response ->
+                                            if (response.isSuccessful) {
+                                                response.body.bytes()
+                                            } else null
+                                        }
+                                    }
+                                }
+                            } else {
+                                FileInputStream(url).use {
+                                    it.readBytes()
                                 }
                             }
-                        } else {
-                            FileInputStream(url).use {
-                                it.readBytes()
-                            }
-                        }
-                        if (response != null) {
-                            val bitmap = BitmapFactory.decodeByteArray(response, 0, response.size)
-                            if (bitmap != null) {
-                                cachedBitmap = bitmap
-                                withContext(Dispatchers.Main) {
-                                    setMetadata(bitmap)
+                            if (response != null) {
+                                val bitmap = BitmapFactory.decodeByteArray(response, 0, response.size)
+                                if (bitmap != null) {
+                                    cachedBitmap = bitmap
+                                    withContext(Dispatchers.Main) {
+                                        setMetadata(bitmap)
+                                    }
                                 }
                             }
-                        }
-                    } catch (e: Exception) {
+                        } catch (e: Exception) {
 
+                        }
                     }
+                    null
                 }
-                null
-            }
-        } else null
-        setMetadata(bitmap)
+            } else null
+            setMetadata(bitmap)
+        } else {
+            updateNotification()
+        }
     }
 
+    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
     private fun setMetadata(bitmap: Bitmap?) {
         player?.let { player ->
             session?.setMetadata(
@@ -1593,106 +1627,252 @@ class MediaPlayerService : BasePlaybackService() {
 
     private fun sendNotification(bitmap: Bitmap?) {
         player?.let { player ->
-            val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                Notification.Builder(this, getString(R.string.notification_playback_channel_id))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    Notification.Builder(this, getString(R.string.notification_playback_channel_id))
+                } else {
+                    @Suppress("DEPRECATION")
+                    Notification.Builder(this)
+                }.apply {
+                    setContentTitle(title)
+                    setContentText(channelName)
+                    setSmallIcon(R.drawable.notification_icon)
+                    if (bitmap != null) {
+                        setLargeIcon(bitmap)
+                    }
+                    setGroup(GROUP_KEY)
+                    setVisibility(Notification.VISIBILITY_PUBLIC)
+                    setOngoing(false)
+                    setOnlyAlertOnce(true)
+                    if (player.isPlaying &&
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            player.playbackParams.speed
+                        } else {
+                            1f
+                        } == 1f
+                    ) {
+                        setWhen(System.currentTimeMillis() - player.currentPosition)
+                        setShowWhen(true)
+                        setUsesChronometer(true)
+                    }
+                    setStyle(
+                        Notification.MediaStyle()
+                            .setMediaSession(session?.sessionToken)
+                            .setShowActionsInCompactView(0, 1, 2)
+                    )
+                    setContentIntent(
+                        PendingIntent.getActivity(
+                            this@MediaPlayerService,
+                            REQUEST_CODE_RESUME,
+                            Intent(this@MediaPlayerService, MainActivity::class.java).apply {
+                                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                action = MainActivity.INTENT_OPEN_PLAYER
+                            },
+                            PendingIntent.FLAG_IMMUTABLE
+                        )
+                    )
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        addAction(
+                            Notification.Action.Builder(
+                                Icon.createWithResource(this@MediaPlayerService, androidx.media3.session.R.drawable.media3_notification_seek_back),
+                                ContextCompat.getString(this@MediaPlayerService, R.string.rewind),
+                                PendingIntent.getService(
+                                    this@MediaPlayerService,
+                                    REQUEST_CODE_REWIND,
+                                    Intent(this@MediaPlayerService, ExoPlayerService::class.java).apply {
+                                        action = INTENT_REWIND
+                                    },
+                                    PendingIntent.FLAG_IMMUTABLE
+                                )
+                            ).build()
+                        )
+                        if (!player.isPlaying) {
+                            addAction(
+                                Notification.Action.Builder(
+                                    Icon.createWithResource(this@MediaPlayerService, androidx.media3.session.R.drawable.media3_notification_play),
+                                    ContextCompat.getString(this@MediaPlayerService, R.string.resume),
+                                    PendingIntent.getService(
+                                        this@MediaPlayerService,
+                                        REQUEST_CODE_PLAY_PAUSE,
+                                        Intent(this@MediaPlayerService, ExoPlayerService::class.java).apply {
+                                            action = INTENT_PLAY_PAUSE
+                                        },
+                                        PendingIntent.FLAG_IMMUTABLE
+                                    )
+                                ).build()
+                            )
+                        } else {
+                            addAction(
+                                Notification.Action.Builder(
+                                    Icon.createWithResource(this@MediaPlayerService, androidx.media3.session.R.drawable.media3_notification_pause),
+                                    ContextCompat.getString(this@MediaPlayerService, R.string.pause),
+                                    PendingIntent.getService(
+                                        this@MediaPlayerService,
+                                        REQUEST_CODE_PLAY_PAUSE,
+                                        Intent(this@MediaPlayerService, ExoPlayerService::class.java).apply {
+                                            action = INTENT_PLAY_PAUSE
+                                        },
+                                        PendingIntent.FLAG_IMMUTABLE
+                                    )
+                                ).build()
+                            )
+                        }
+                        addAction(
+                            Notification.Action.Builder(
+                                Icon.createWithResource(this@MediaPlayerService, androidx.media3.session.R.drawable.media3_notification_seek_forward),
+                                ContextCompat.getString(this@MediaPlayerService, R.string.forward),
+                                PendingIntent.getService(
+                                    this@MediaPlayerService,
+                                    REQUEST_CODE_FAST_FORWARD,
+                                    Intent(this@MediaPlayerService, ExoPlayerService::class.java).apply {
+                                        action = INTENT_FAST_FORWARD
+                                    },
+                                    PendingIntent.FLAG_IMMUTABLE
+                                )
+                            ).build()
+                        )
+                    } else @Suppress("DEPRECATION") {
+                        addAction(
+                            Notification.Action.Builder(
+                                androidx.media3.session.R.drawable.media3_notification_seek_back,
+                                ContextCompat.getString(this@MediaPlayerService, R.string.rewind),
+                                PendingIntent.getService(
+                                    this@MediaPlayerService,
+                                    REQUEST_CODE_REWIND,
+                                    Intent(this@MediaPlayerService, ExoPlayerService::class.java).apply {
+                                        action = INTENT_REWIND
+                                    },
+                                    PendingIntent.FLAG_IMMUTABLE
+                                )
+                            ).build()
+                        )
+                        if (!player.isPlaying) {
+                            addAction(
+                                Notification.Action.Builder(
+                                    androidx.media3.session.R.drawable.media3_notification_play,
+                                    ContextCompat.getString(this@MediaPlayerService, R.string.resume),
+                                    PendingIntent.getService(
+                                        this@MediaPlayerService,
+                                        REQUEST_CODE_PLAY_PAUSE,
+                                        Intent(this@MediaPlayerService, ExoPlayerService::class.java).apply {
+                                            action = INTENT_PLAY_PAUSE
+                                        },
+                                        PendingIntent.FLAG_IMMUTABLE
+                                    )
+                                ).build()
+                            )
+                        } else {
+                            addAction(
+                                Notification.Action.Builder(
+                                    androidx.media3.session.R.drawable.media3_notification_pause,
+                                    ContextCompat.getString(this@MediaPlayerService, R.string.pause),
+                                    PendingIntent.getService(
+                                        this@MediaPlayerService,
+                                        REQUEST_CODE_PLAY_PAUSE,
+                                        Intent(this@MediaPlayerService, ExoPlayerService::class.java).apply {
+                                            action = INTENT_PLAY_PAUSE
+                                        },
+                                        PendingIntent.FLAG_IMMUTABLE
+                                    )
+                                ).build()
+                            )
+                        }
+                        addAction(
+                            Notification.Action.Builder(
+                                androidx.media3.session.R.drawable.media3_notification_seek_forward,
+                                ContextCompat.getString(this@MediaPlayerService, R.string.forward),
+                                PendingIntent.getService(
+                                    this@MediaPlayerService,
+                                    REQUEST_CODE_FAST_FORWARD,
+                                    Intent(this@MediaPlayerService, ExoPlayerService::class.java).apply {
+                                        action = INTENT_FAST_FORWARD
+                                    },
+                                    PendingIntent.FLAG_IMMUTABLE
+                                )
+                            ).build()
+                        )
+                    }
+                }.build()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+                } else {
+                    startForeground(NOTIFICATION_ID, notification)
+                }
             } else {
                 @Suppress("DEPRECATION")
-                Notification.Builder(this)
-            }.apply {
-                setContentTitle(title)
-                setContentText(channelName)
-                setSmallIcon(R.drawable.notification_icon)
-                if (bitmap != null) {
-                    setLargeIcon(bitmap)
-                }
-                setGroup(GROUP_KEY)
-                setVisibility(Notification.VISIBILITY_PUBLIC)
-                setOngoing(false)
-                setOnlyAlertOnce(true)
-                if (player.isPlaying && player.getPlaybackSpeedCompat() == 1f) {
-                    setWhen(System.currentTimeMillis() - player.currentPosition)
-                    setShowWhen(true)
-                    setUsesChronometer(true)
-                }
-                setStyle(
-                    Notification.MediaStyle()
-                        .setMediaSession(session?.sessionToken)
-                        .setShowActionsInCompactView(0, 1, 2)
-                )
-                setContentIntent(
-                    PendingIntent.getActivity(
-                        this@MediaPlayerService,
-                        REQUEST_CODE_RESUME,
-                        Intent(this@MediaPlayerService, MainActivity::class.java).apply {
-                            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
-                            action = MainActivity.INTENT_OPEN_PLAYER
-                        },
-                        PendingIntent.FLAG_IMMUTABLE
+                val notification = NotificationCompat.Builder(this).apply {
+                    setContentTitle(title)
+                    setContentText(channelName)
+                    setSmallIcon(R.drawable.notification_icon)
+                    if (bitmap != null) {
+                        setLargeIcon(bitmap)
+                    }
+                    setOngoing(false)
+                    setOnlyAlertOnce(true)
+                    setStyle(androidx.media.app.NotificationCompat.MediaStyle())
+                    setContentIntent(
+                        PendingIntent.getActivity(
+                            this@MediaPlayerService,
+                            REQUEST_CODE_RESUME,
+                            Intent(this@MediaPlayerService, MainActivity::class.java).apply {
+                                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                action = MainActivity.INTENT_OPEN_PLAYER
+                            },
+                            PendingIntent.FLAG_IMMUTABLE
+                        )
                     )
-                )
-                addAction(
-                    Notification.Action.Builder(
-                        androidx.media3.session.R.drawable.media3_icon_rewind,
+                    addAction(
+                        androidx.media3.session.R.drawable.media3_notification_seek_back,
                         ContextCompat.getString(this@MediaPlayerService, R.string.rewind),
                         PendingIntent.getService(
                             this@MediaPlayerService,
                             REQUEST_CODE_REWIND,
-                            Intent(this@MediaPlayerService, MediaPlayerService::class.java).apply {
+                            Intent(this@MediaPlayerService, ExoPlayerService::class.java).apply {
                                 action = INTENT_REWIND
                             },
                             PendingIntent.FLAG_IMMUTABLE
                         )
-                    ).build()
-                )
-                if (!player.isPlaying) {
-                    addAction(
-                        Notification.Action.Builder(
-                            androidx.media3.session.R.drawable.media3_icon_play,
+                    )
+                    if (!player.isPlaying) {
+                        addAction(
+                            androidx.media3.session.R.drawable.media3_notification_play,
                             ContextCompat.getString(this@MediaPlayerService, R.string.resume),
                             PendingIntent.getService(
                                 this@MediaPlayerService,
                                 REQUEST_CODE_PLAY_PAUSE,
-                                Intent(this@MediaPlayerService, MediaPlayerService::class.java).apply {
+                                Intent(this@MediaPlayerService, ExoPlayerService::class.java).apply {
                                     action = INTENT_PLAY_PAUSE
                                 },
                                 PendingIntent.FLAG_IMMUTABLE
                             )
-                        ).build()
-                    )
-                } else {
-                    addAction(
-                        Notification.Action.Builder(
-                            androidx.media3.session.R.drawable.media3_icon_pause,
+                        )
+                    } else {
+                        addAction(
+                            androidx.media3.session.R.drawable.media3_notification_pause,
                             ContextCompat.getString(this@MediaPlayerService, R.string.pause),
                             PendingIntent.getService(
                                 this@MediaPlayerService,
                                 REQUEST_CODE_PLAY_PAUSE,
-                                Intent(this@MediaPlayerService, MediaPlayerService::class.java).apply {
+                                Intent(this@MediaPlayerService, ExoPlayerService::class.java).apply {
                                     action = INTENT_PLAY_PAUSE
                                 },
                                 PendingIntent.FLAG_IMMUTABLE
                             )
-                        ).build()
-                    )
-                }
-                addAction(
-                    Notification.Action.Builder(
-                        androidx.media3.session.R.drawable.media3_icon_fast_forward,
+                        )
+                    }
+                    addAction(
+                        androidx.media3.session.R.drawable.media3_notification_seek_forward,
                         ContextCompat.getString(this@MediaPlayerService, R.string.forward),
                         PendingIntent.getService(
                             this@MediaPlayerService,
                             REQUEST_CODE_FAST_FORWARD,
-                            Intent(this@MediaPlayerService, MediaPlayerService::class.java).apply {
+                            Intent(this@MediaPlayerService, ExoPlayerService::class.java).apply {
                                 action = INTENT_FAST_FORWARD
                             },
                             PendingIntent.FLAG_IMMUTABLE
                         )
-                    ).build()
-                )
-            }.build()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-            } else {
+                    )
+                }.build()
                 startForeground(NOTIFICATION_ID, notification)
             }
         }
@@ -1933,7 +2113,9 @@ class MediaPlayerService : BasePlaybackService() {
         super.onDestroy()
         wifiLock?.release()
         player?.release()
-        session?.release()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            session?.release()
+        }
         bitmapLoadJob?.cancel()
         notificationManager?.cancel(NOTIFICATION_ID)
     }

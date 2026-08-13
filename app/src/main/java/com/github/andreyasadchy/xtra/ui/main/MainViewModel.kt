@@ -1,5 +1,4 @@
 package com.github.andreyasadchy.xtra.ui.main
-import com.github.andreyasadchy.xtra.util.isActiveNetworkCellularCompat
 
 import android.annotation.SuppressLint
 import android.app.Activity
@@ -11,6 +10,7 @@ import android.content.pm.PackageInstaller
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.http.HttpEngine
+import android.os.Build
 import android.widget.Toast
 import androidx.core.content.edit
 import androidx.lifecycle.ViewModel
@@ -37,6 +37,7 @@ import com.github.andreyasadchy.xtra.repository.PlayerRepository
 import com.github.andreyasadchy.xtra.ui.login.LoginActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.NetworkUtils
+import com.github.andreyasadchy.xtra.util.NetworkUtils.body
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.tokenPrefs
@@ -683,8 +684,13 @@ class MainViewModel(
                     }
                 }
                 val waitForWifi = if (wifiOnly) {
-                    val connectivityManager = applicationContext.getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                    connectivityManager.isActiveNetworkCellularCompat()
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        val connectivityManager = applicationContext.getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                        val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
+                        networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                    } else {
+                        false
+                    }
                 } else false
                 val videoId = offlineVideosRepository.save(
                     OfflineVideo(
@@ -857,8 +863,13 @@ class MainViewModel(
                 }
             }
             val waitForWifi = if (wifiOnly) {
-                val connectivityManager = applicationContext.getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                connectivityManager.isActiveNetworkCellularCompat()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val connectivityManager = applicationContext.getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                    val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
+                    networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                } else {
+                    false
+                }
             } else false
             val videoId = offlineVideosRepository.save(
                 OfflineVideo(
@@ -1035,8 +1046,13 @@ class MainViewModel(
                 }
             }
             val waitForWifi = if (wifiOnly) {
-                val connectivityManager = applicationContext.getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                connectivityManager.isActiveNetworkCellularCompat()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val connectivityManager = applicationContext.getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                    val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
+                    networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                } else {
+                    false
+                }
             } else false
             val videoId = offlineVideosRepository.save(
                 OfflineVideo(

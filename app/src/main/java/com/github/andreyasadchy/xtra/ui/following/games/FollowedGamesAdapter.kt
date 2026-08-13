@@ -8,17 +8,16 @@ import android.widget.TextView
 import androidx.constraintlayout.helper.widget.Flow
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.res.use
+import androidx.core.view.ViewCompat
 import androidx.core.widget.TextViewCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import androidx.paging.PagingDataAdapter
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
-import coil3.imageLoader
-import coil3.request.CachePolicy
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import coil3.request.target
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.FragmentFollowedGamesListItemBinding
 import com.github.andreyasadchy.xtra.model.ui.Game
@@ -79,14 +78,11 @@ class FollowedGamesAdapter(
                     }
                     if (item.boxArt != null) {
                         gameImage.visibility = View.VISIBLE
-                        fragment.requireContext().imageLoader.enqueue(
-                            ImageRequest.Builder(fragment.requireContext()).apply {
-                                data(item.boxArt)
-                                diskCachePolicy(CachePolicy.DISABLED)
-                                crossfade(true)
-                                target(gameImage)
-                            }.build()
-                        )
+                        Glide.with(fragment)
+                            .load(item.boxArt)
+                            .diskCacheStrategy(DiskCacheStrategy.NONE)
+                            .transition(DrawableTransitionOptions.withCrossFade())
+                            .into(gameImage)
                     } else {
                         gameImage.visibility = View.GONE
                     }
@@ -137,7 +133,7 @@ class FollowedGamesAdapter(
                         val ids = mutableListOf<Int>()
                         for (tag in item.tags!!) {
                             val text = TextView(context)
-                            val id = View.generateViewId()
+                            val id = ViewCompat.generateViewId()
                             text.id = id
                             ids.add(id)
                             text.text = tag.name

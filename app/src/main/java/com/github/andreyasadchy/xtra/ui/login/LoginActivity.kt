@@ -5,6 +5,7 @@ import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.View
@@ -168,7 +169,12 @@ class LoginActivity : AppCompatActivity() {
             textZoom.visibility = View.VISIBLE
             havingTrouble.visibility = View.VISIBLE
             setupButtons(networkLibrary, helixClientId, helixAuthUrl)
-            CookieManager.getInstance().removeAllCookies(null)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                CookieManager.getInstance().removeAllCookies(null)
+            } else {
+                @Suppress("DEPRECATION")
+                CookieManager.getInstance().removeAllCookie()
+            }
             val isLightTheme = obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.isLightTheme)).use {
                 it.getBoolean(0, false)
             }
@@ -191,7 +197,7 @@ class LoginActivity : AppCompatActivity() {
             webView.webViewClient = object : WebViewClientCompat() {
 
                 override fun shouldInterceptRequest(view: WebView, webViewRequest: WebResourceRequest): WebResourceResponse? {
-                    if (readHeaders) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && readHeaders) {
                         val token = webViewRequest.requestHeaders.entries.find {
                             it.key.equals(C.HEADER_TOKEN, true) && !it.value.equals("undefined", true)
                         }?.value?.removePrefix("OAuth ")
@@ -262,7 +268,7 @@ class LoginActivity : AppCompatActivity() {
                 }
 
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                    if (checkUrl) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && checkUrl) {
                         loginIfValidUrl(request.url.toString(), networkLibrary, helixClientId, helixAuthUrl, apiSetting)
                     }
                     return super.shouldOverrideUrlLoading(view, request)
@@ -280,7 +286,7 @@ class LoginActivity : AppCompatActivity() {
 
                 override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceErrorCompat) {
                     super.onReceivedError(view, request, error)
-                    if (request.isForMainFrame) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && request.isForMainFrame) {
                         val errorCode = if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_RESOURCE_ERROR_GET_CODE)) {
                             error.errorCode
                         } else null
@@ -454,7 +460,12 @@ class LoginActivity : AppCompatActivity() {
             if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
                 WebViewCompat.setProfile(secondaryWebView, "profile2")
             } else {
-                CookieManager.getInstance().removeAllCookies(null)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    CookieManager.getInstance().removeAllCookies(null)
+                } else {
+                    @Suppress("DEPRECATION")
+                    CookieManager.getInstance().removeAllCookie()
+                }
             }
             @Suppress("DEPRECATION")
             if (!isLightTheme) {
@@ -474,7 +485,7 @@ class LoginActivity : AppCompatActivity() {
             secondaryWebView.webChromeClient = WebChromeClient()
             secondaryWebView.webViewClient = object : WebViewClientCompat() {
                 override fun shouldInterceptRequest(view: WebView, webViewRequest: WebResourceRequest): WebResourceResponse? {
-                    if (readHeaders2) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && readHeaders2) {
                         val token = webViewRequest.requestHeaders.entries.find {
                             it.key.equals(C.HEADER_TOKEN, true) && !it.value.equals("undefined", true)
                         }?.value?.removePrefix("OAuth ")
@@ -661,7 +672,12 @@ class LoginActivity : AppCompatActivity() {
     private fun error() {
         with(binding) {
             Toast.makeText(this@LoginActivity, R.string.connection_error, Toast.LENGTH_LONG).show()
-            CookieManager.getInstance().removeAllCookies(null)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                CookieManager.getInstance().removeAllCookies(null)
+            } else {
+                @Suppress("DEPRECATION")
+                CookieManager.getInstance().removeAllCookie()
+            }
             helixToken = null
             gqlClientId = null
             gqlToken = null

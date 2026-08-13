@@ -25,10 +25,10 @@ android {
 
     defaultConfig {
         applicationId = "com.github.andreyasadchy.xtra"
-        minSdk = 21
+        minSdk = 16
         targetSdk = 37
-        versionCode = 131
-        versionName = "2.58.5.6"
+        versionCode = 132
+        versionName = "2.58.6.1"
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a")
         }
@@ -48,6 +48,7 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-DEBUG"
             signingConfig = signingConfigs.getByName("debug")
+            multiDexEnabled = true
         }
         release {
             isShrinkResources = true
@@ -74,13 +75,50 @@ android {
         "lib/armeabi-v7a/libtranslate_jni.so",
         "lib/armeabi-v7a/liblanguage_id_l2c_jni.so",
     ))
+    configurations.all {
+        resolutionStrategy.force(listOf(
+            "androidx.activity:activity:1.8.2",
+            "androidx.appcompat:appcompat:1.7.0-alpha03",
+            "androidx.constraintlayout:constraintlayout:2.1.4",
+            "androidx.coordinatorlayout:coordinatorlayout:1.3.0-alpha02",
+            "androidx.core:core-ktx:1.13.0-alpha01",
+            "androidx.fragment:fragment-ktx:1.7.0-alpha06",
+            "androidx.lifecycle:lifecycle-service:2.7.0-alpha03",
+            "androidx.lifecycle:lifecycle-viewmodel:2.7.0-alpha03",
+            "androidx.media3:media3-exoplayer:1.2.1",
+            "androidx.media3:media3-exoplayer-hls:1.2.1",
+            "androidx.media3:media3-session:1.2.1",
+            "androidx.media3:media3-ui:1.2.1",
+            "androidx.navigation:navigation-fragment:2.7.7",
+            "androidx.navigation:navigation-ui:2.7.7",
+            "androidx.paging:paging-runtime:3.3.0-alpha02",
+            "androidx.recyclerview:recyclerview:1.4.0-alpha01",
+            "androidx.room:room-ktx:2.6.1",
+            "androidx.room:room-compiler:2.6.1",
+            "androidx.room:room-paging:2.6.1",
+            "androidx.room:room-runtime:2.6.1",
+            "androidx.swiperefreshlayout:swiperefreshlayout:1.2.0-alpha01",
+            "androidx.viewpager2:viewpager2:1.1.0-beta02",
+            "androidx.webkit:webkit:1.9.0-alpha01",
+            "androidx.work:work-runtime:2.9.1",
+            "com.google.android.material:material:1.11.0",
+            "com.squareup.okhttp3:okhttp:3.12.13",
+            "com.squareup.okhttp3:logging-interceptor:3.12.13",
+            "org.chromium.net:cronet-api:119.6045.31",
+            "org.conscrypt:conscrypt-android:2.5.3",
+        ))
+    }
 }
 
 dependencies {
+    implementation("androidx.multidex:multidex:2.0.1")
+    implementation("androidx.core:core-ktx:1.13.0-alpha01")
+    implementation("androidx.room:room-ktx:2.6.1")
+    implementation("androidx.media:media:1.6.0")
     compileOnly("com.google.j2objc:j2objc-annotations:3.0.0") // OkHttpDataSource SettableFuture
-    implementation("com.google.android.gms:play-services-cronet:18.1.0")
-    implementation("com.google.mlkit:language-id:17.0.6")
-    implementation("com.google.mlkit:translate:17.0.3")
+    implementation("com.google.android.gms:play-services-cronet:18.0.1")
+    implementation("com.google.mlkit:language-id:17.0.1")
+    implementation("com.google.mlkit:translate:16.1.2")
 
     implementation(libs.material)
     implementation(libs.markwon.core)
@@ -90,7 +128,6 @@ dependencies {
     implementation(libs.appcompat)
     implementation(libs.constraintlayout)
     implementation(libs.coordinatorlayout)
-    implementation(libs.core)
     implementation(libs.fragment.ktx)
     implementation(libs.lifecycle.service)
     implementation(libs.lifecycle.viewmodel)
@@ -118,10 +155,6 @@ dependencies {
     implementation(libs.media3.exoplayer.hls)
     implementation(libs.media3.ui)
     implementation(libs.media3.session)
-
-    implementation(libs.coil)
-    implementation(libs.coil.gif)
-    implementation(libs.coil.okhttp)
 
     implementation(libs.glide)
     ksp(libs.glide.ksp)

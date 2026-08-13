@@ -1,6 +1,7 @@
 package com.github.andreyasadchy.xtra.ui.player
 
 import android.animation.AnimatorInflater
+import android.os.Build
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -18,10 +19,12 @@ internal fun PlayerLayoutBinding.configureTelevisionControls() {
         control.isFocusable = true
         control.isFocusableInTouchMode = false
         control.setBackgroundResource(R.drawable.tv_player_control_background)
-        control.stateListAnimator = AnimatorInflater.loadStateListAnimator(
-            root.context,
-            R.animator.tv_card_focus,
-        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            control.stateListAnimator = AnimatorInflater.loadStateListAnimator(
+                root.context,
+                R.animator.tv_card_focus,
+            )
+        }
     }
     progressBar.isFocusable = true
     progressBar.isFocusableInTouchMode = false

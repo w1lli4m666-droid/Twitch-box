@@ -2,6 +2,7 @@ package com.github.andreyasadchy.xtra.ui.saved.downloads
 
 import android.content.ContentResolver
 import android.content.Context
+import android.os.Build
 import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.View
@@ -13,13 +14,6 @@ import androidx.navigation.fragment.findNavController
 import androidx.paging.PagingDataAdapter
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
-import coil3.imageLoader
-import coil3.request.CachePolicy
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import coil3.request.target
-import coil3.request.transformations
-import coil3.transform.CircleCropTransformation
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
@@ -96,15 +90,17 @@ class DownloadsAdapter(
                             menu.findItem(R.id.resumeDownload).isVisible = true
                         }
                         else -> {
-                            menu.findItem(R.id.moveVideo).apply {
-                                isVisible = true
-                                title = context.getString(
-                                    if (item.url?.toUri()?.scheme == ContentResolver.SCHEME_CONTENT) {
-                                        R.string.move_to_app_storage
-                                    } else {
-                                        R.string.move_to_shared_storage
-                                    }
-                                )
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                menu.findItem(R.id.moveVideo).apply {
+                                    isVisible = true
+                                    title = context.getString(
+                                        if (item.url?.toUri()?.scheme == ContentResolver.SCHEME_CONTENT) {
+                                            R.string.move_to_app_storage
+                                        } else {
+                                            R.string.move_to_shared_storage
+                                        }
+                                    )
+                                }
                             }
                             if (item.url?.endsWith(".m3u8") == true) {
                                 menu.findItem(R.id.convertVideo).isVisible = true
@@ -215,22 +211,11 @@ class DownloadsAdapter(
                         deleteVideo(item)
                         true
                     }
-                    if (item.thumbnail?.toUri()?.scheme == ContentResolver.SCHEME_CONTENT) {
-                        Glide.with(fragment)
-                            .load(item.thumbnail)
-                            .diskCacheStrategy(DiskCacheStrategy.NONE)
-                            .transition(DrawableTransitionOptions.withCrossFade())
-                            .into(thumbnail)
-                    } else {
-                        fragment.requireContext().imageLoader.enqueue(
-                            ImageRequest.Builder(fragment.requireContext()).apply {
-                                data(item.thumbnail)
-                                diskCachePolicy(CachePolicy.DISABLED)
-                                crossfade(true)
-                                target(thumbnail)
-                            }.build()
-                        )
-                    }
+                    Glide.with(fragment)
+                        .load(item.thumbnail)
+                        .diskCacheStrategy(DiskCacheStrategy.NONE)
+                        .transition(DrawableTransitionOptions.withCrossFade())
+                        .into(userImage)
                     val uploadDate = item.uploadDate
                     if (uploadDate != null) {
                         date.visibility = View.VISIBLE
@@ -257,17 +242,16 @@ class DownloadsAdapter(
                     }
                     if (item.channelLogo != null) {
                         userImage.visibility = View.VISIBLE
-                        fragment.requireContext().imageLoader.enqueue(
-                            ImageRequest.Builder(fragment.requireContext()).apply {
-                                data(item.channelLogo)
-                                diskCachePolicy(CachePolicy.DISABLED)
+                        Glide.with(fragment)
+                            .load(item.channelLogo)
+                            .diskCacheStrategy(DiskCacheStrategy.NONE)
+                            .transition(DrawableTransitionOptions.withCrossFade())
+                            .apply {
                                 if (context.prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true)) {
-                                    transformations(CircleCropTransformation())
+                                    circleCrop()
                                 }
-                                crossfade(true)
-                                target(userImage)
-                            }.build()
-                        )
+                            }
+                            .into(userImage)
                         userImage.setOnClickListener(channelListener)
                     } else {
                         userImage.visibility = View.GONE

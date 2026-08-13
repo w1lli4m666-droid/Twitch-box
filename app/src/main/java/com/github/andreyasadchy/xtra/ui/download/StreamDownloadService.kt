@@ -1,5 +1,4 @@
 package com.github.andreyasadchy.xtra.ui.download
-import com.github.andreyasadchy.xtra.util.isActiveNetworkCellularCompat
 
 import android.annotation.SuppressLint
 import android.app.Notification
@@ -9,6 +8,7 @@ import android.app.PendingIntent
 import android.content.ContentResolver
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.drawable.Icon
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.http.HttpEngine
@@ -21,6 +21,7 @@ import android.util.Base64
 import android.util.JsonReader
 import android.util.JsonToken
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.LifecycleService
@@ -39,7 +40,9 @@ import com.github.andreyasadchy.xtra.model.ui.Stream
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.NetworkUtils
+import com.github.andreyasadchy.xtra.util.NetworkUtils.body
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
+import com.github.andreyasadchy.xtra.util.NetworkUtils.request
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.chat.ChatReadWebSocket
 import com.github.andreyasadchy.xtra.util.chat.ChatUtils
@@ -64,9 +67,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.Credentials
 import okhttp3.Request
-import org.chromium.net.CronetEngine
-import org.chromium.net.CronetProvider
-import org.chromium.net.QuicOptions
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -74,6 +74,7 @@ import java.net.InetSocketAddress
 import java.net.Proxy
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -161,8 +162,13 @@ class StreamDownloadService : LifecycleService() {
                             OfflineVideo.STATUS_DOWNLOADED
                         } else {
                             val waitForWifi = if (prefs().getBoolean(C.DOWNLOAD_WIFI_ONLY, false)) {
-                                val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                                connectivityManager.isActiveNetworkCellularCompat()
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                    val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                                    val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
+                                    networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                                } else {
+                                    false
+                                }
                             } else false
                             if (waitForWifi) {
                                 OfflineVideo.STATUS_WAITING_FOR_WIFI
@@ -276,7 +282,7 @@ class StreamDownloadService : LifecycleService() {
                 if (qualities.isNotEmpty()) {
                     val selectedQuality = if (!quality.isNullOrBlank()) {
                         val audio = if (quality.startsWith("audio", true)) {
-                            qualities.find { it.name == "audio_only" }
+                            qualities.find { it.name == VideoQuality.AUDIO_ONLY_QUALITY }
                         } else null
                         if (audio != null) {
                             audio
@@ -284,12 +290,13 @@ class StreamDownloadService : LifecycleService() {
                             val targetQuality = quality.split("p")
                             targetQuality.getOrNull(0)?.takeWhile { it.isDigit() }?.toIntOrNull()?.let { targetResolution ->
                                 val targetFps = targetQuality.getOrNull(1)?.takeWhile { it.isDigit() }?.toIntOrNull() ?: 30
-                                val last = qualities.last { it.name != "audio_only" }
-                                qualities.find { qualityString ->
-                                    val quality = qualityString.name?.split("p")
-                                    val resolution = quality?.getOrNull(0)?.takeWhile { it.isDigit() }?.toIntOrNull()
-                                    val fps = quality?.getOrNull(1)?.takeWhile { it.isDigit() }?.toIntOrNull() ?: 30
-                                    resolution != null && ((targetResolution == resolution && targetFps >= fps) || targetResolution > resolution || qualityString == last)
+                                val last = qualities.last { it.name != VideoQuality.AUDIO_ONLY_QUALITY }
+                                qualities.find { quality ->
+                                    quality.resolution != null
+                                            && ((targetResolution == quality.resolution
+                                            && targetFps >= (quality.frameRate?.let { fps -> floor(fps) } ?: 30f))
+                                            || targetResolution > quality.resolution
+                                            || quality == last)
                                 }
                             } ?: qualities.first()
                         }
@@ -314,8 +321,13 @@ class StreamDownloadService : LifecycleService() {
                         }
                     }
                     val waitForWifi = if (prefs().getBoolean(C.DOWNLOAD_WIFI_ONLY, false)) {
-                        val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                        connectivityManager.isActiveNetworkCellularCompat()
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                            val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
+                            networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                        } else {
+                            false
+                        }
                     } else false
                     if (waitForWifi) {
                         throw Exception()
@@ -483,41 +495,7 @@ class StreamDownloadService : LifecycleService() {
             }
             networkLibrary == C.CRONET && xtraModule.cronetEngine.value != null -> {
                 val cronetEngine = if (proxyMultivariantPlaylist) {
-                    if (CronetProvider.getAllProviders(application).any { it.isEnabled }) {
-                        val proxyHeaders = if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                            mapOf("Proxy-Authorization" to Base64.encodeToString("$proxyUser:$proxyPassword".toByteArray(), Base64.NO_WRAP)).entries.toList()
-                        } else emptyList()
-                        val builder = CronetEngine.Builder(application).apply {
-                            val userAgent = "Cronet/" + defaultUserAgent.substringAfter("Cronet/", "").substringBefore(')')
-                            setUserAgent(userAgent)
-                            @QuicOptions.Experimental
-                            setQuicOptions(QuicOptions.builder().setHandshakeUserAgent(userAgent).build())
-                        }
-                        try {
-                            @org.chromium.net.ProxyOptions.Experimental
-                            builder.setProxyOptions(org.chromium.net.ProxyOptions(
-                                listOf(
-                                    org.chromium.net.Proxy(
-                                        org.chromium.net.Proxy.HTTP,
-                                        proxyHost,
-                                        proxyPort,
-                                        xtraModule.cronetExecutor.value,
-                                        object : org.chromium.net.Proxy.Callback() {
-                                            override fun onBeforeTunnelRequest(request: Request) {
-                                                request.proceed(proxyHeaders)
-                                            }
-
-                                            override fun onTunnelHeadersReceived(responseHeaders: List<Map.Entry<String?, String?>?>, statusCode: Int): Boolean {
-                                                return true
-                                            }
-                                        }
-                                    )
-                                )
-                            ))
-                        } catch (e: UnsupportedOperationException) {
-                            null
-                        }?.build()
-                    } else null
+                    null
                 } else {
                     xtraModule.cronetEngine.value!!
                 }
@@ -578,32 +556,30 @@ class StreamDownloadService : LifecycleService() {
 
     private suspend fun getQualities(playlist: String): List<VideoQuality> = withContext(Dispatchers.IO) {
         val names = Regex("IVS-NAME=\"(.+?)\"").findAll(playlist).mapNotNull { it.groups[1]?.value }.toMutableList()
-        val codecs = Regex("CODECS=\"(.+?)\"").findAll(playlist).mapNotNull { it.groups[1]?.value }.toMutableList()
+        val resolutions = Regex("RESOLUTION=(\\d+x\\d+)").findAll(playlist).mapNotNull { it.groups[1]?.value }.toMutableList()
+        val frameRates = Regex("FRAME-RATE=([\\d.]+)\\b").findAll(playlist).mapNotNull { it.groups[1]?.value?.toFloatOrNull() }.toMutableList()
         val bitrates = Regex("BANDWIDTH=(\\d+)\\b").findAll(playlist).mapNotNull { it.groups[1]?.value?.toIntOrNull() }.toMutableList()
+        val codecs = Regex("CODECS=\"(.+?)\"").findAll(playlist).mapNotNull { it.groups[1]?.value }.toMutableList()
         val urls = Regex("https://.*\\.m3u8").findAll(playlist).map(MatchResult::value).toMutableList()
         val list = names.mapIndexedNotNull { index, name ->
             urls.getOrNull(index)?.let { url ->
-                VideoQuality(name, codecs.getOrNull(index), bitrates.getOrNull(index), url)
+                VideoQuality(name, resolutions.getOrNull(index)?.substringBefore('x')?.toIntOrNull(), frameRates.getOrNull(index), bitrates.getOrNull(index), codecs.getOrNull(index), url)
             }
         }
         list
-            .sortedByDescending {
-                it.bitrate
-            }
-            .sortedByDescending {
-                it.name?.substringAfter("p", "")?.takeWhile { it.isDigit() }?.toIntOrNull()
-            }
-            .sortedByDescending {
-                it.name?.substringBefore("p", "")?.takeWhile { it.isDigit() }?.toIntOrNull()
-            }
+            .sortedWith(
+                compareByDescending<VideoQuality> { it.bitrate }
+                    .thenByDescending { it.frameRate }
+                    .thenByDescending { it.resolution }
+            )
             .toMutableList().apply {
                 find { it.name.equals("source", true) }?.let { source ->
                     remove(source)
-                    add(0, VideoQuality("source", source.codecs, source.bitrate, source.url))
+                    add(0, VideoQuality(VideoQuality.SOURCE_QUALITY, source.resolution, source.frameRate, source.bitrate, source.codecs, source.url))
                 }
                 find { it.name?.startsWith("audio", true) == true }?.let { audio ->
                     remove(audio)
-                    add(VideoQuality("audio_only", audio.codecs, audio.bitrate, audio.url))
+                    add(VideoQuality(VideoQuality.AUDIO_ONLY_QUALITY, audio.resolution, audio.frameRate, audio.bitrate, audio.codecs, audio.url))
                 }
             }
     }
@@ -2030,35 +2006,93 @@ class StreamDownloadService : LifecycleService() {
     }
 
     private fun sendNotification(offlineVideo: OfflineVideo, downloadProgress: DownloadProgress) {
-        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, getString(R.string.notification_downloads_channel_id))
+        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Notification.Builder(this, getString(R.string.notification_downloads_channel_id))
+            } else {
+                @Suppress("DEPRECATION")
+                Notification.Builder(this)
+            }.apply {
+                setContentTitle(ContextCompat.getString(this@StreamDownloadService, if (downloadProgress.isLive) {
+                    R.string.downloading
+                } else {
+                    R.string.download_waiting_for_stream
+                }))
+                setContentText(offlineVideo.channelName)
+                setSmallIcon(android.R.drawable.stat_sys_download)
+                setGroup(GROUP_KEY)
+                setOngoing(true)
+                setOnlyAlertOnce(true)
+                setContentIntent(
+                    PendingIntent.getActivity(
+                        this@StreamDownloadService,
+                        offlineVideo.id,
+                        Intent(this@StreamDownloadService, MainActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                            action = MainActivity.INTENT_OPEN_DOWNLOADS_TAB
+                        },
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                    )
+                )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    addAction(
+                        Notification.Action.Builder(
+                            Icon.createWithResource(this@StreamDownloadService, android.R.drawable.ic_delete),
+                            ContextCompat.getString(this@StreamDownloadService, R.string.stop),
+                            PendingIntent.getService(
+                                this@StreamDownloadService,
+                                REQUEST_CODE_STOP,
+                                Intent(this@StreamDownloadService, StreamDownloadService::class.java).apply {
+                                    action = INTENT_STOP
+                                    putExtra(KEY_VIDEO_ID, offlineVideo.id)
+                                },
+                                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                            )
+                        ).build()
+                    )
+                } else @Suppress("DEPRECATION") {
+                    addAction(
+                        Notification.Action.Builder(
+                            android.R.drawable.ic_delete,
+                            ContextCompat.getString(this@StreamDownloadService, R.string.stop),
+                            PendingIntent.getService(
+                                this@StreamDownloadService,
+                                REQUEST_CODE_STOP,
+                                Intent(this@StreamDownloadService, StreamDownloadService::class.java).apply {
+                                    action = INTENT_STOP
+                                    putExtra(KEY_VIDEO_ID, offlineVideo.id)
+                                },
+                                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                            )
+                        ).build()
+                    )
+                }
+            }.build()
         } else {
             @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        }.apply {
-            setContentTitle(ContextCompat.getString(this@StreamDownloadService, if (downloadProgress.isLive) {
-                R.string.downloading
-            } else {
-                R.string.download_waiting_for_stream
-            }))
-            setContentText(offlineVideo.channelName)
-            setSmallIcon(android.R.drawable.stat_sys_download)
-            setGroup(GROUP_KEY)
-            setOngoing(true)
-            setOnlyAlertOnce(true)
-            setContentIntent(
-                PendingIntent.getActivity(
-                    this@StreamDownloadService,
-                    offlineVideo.id,
-                    Intent(this@StreamDownloadService, MainActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
-                        action = MainActivity.INTENT_OPEN_DOWNLOADS_TAB
-                    },
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            NotificationCompat.Builder(this).apply {
+                setContentTitle(ContextCompat.getString(this@StreamDownloadService, if (downloadProgress.isLive) {
+                    R.string.downloading
+                } else {
+                    R.string.download_waiting_for_stream
+                }))
+                setContentText(offlineVideo.channelName)
+                setSmallIcon(android.R.drawable.stat_sys_download)
+                setGroup(GROUP_KEY)
+                setOngoing(true)
+                setOnlyAlertOnce(true)
+                setContentIntent(
+                    PendingIntent.getActivity(
+                        this@StreamDownloadService,
+                        offlineVideo.id,
+                        Intent(this@StreamDownloadService, MainActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                            action = MainActivity.INTENT_OPEN_DOWNLOADS_TAB
+                        },
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                    )
                 )
-            )
-            addAction(
-                Notification.Action.Builder(
+                addAction(
                     android.R.drawable.ic_delete,
                     ContextCompat.getString(this@StreamDownloadService, R.string.stop),
                     PendingIntent.getService(
@@ -2070,9 +2104,9 @@ class StreamDownloadService : LifecycleService() {
                         },
                         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                     )
-                ).build()
-            )
-        }.build()
+                )
+            }.build()
+        }
         if (downloadProgress == activeDownloads.firstOrNull()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 startForeground(offlineVideo.id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)

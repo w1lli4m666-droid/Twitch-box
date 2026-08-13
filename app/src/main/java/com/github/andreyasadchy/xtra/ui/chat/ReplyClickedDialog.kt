@@ -151,7 +151,7 @@ class ReplyClickedDialog : BottomSheetDialogFragment() {
                 clipboard?.setPrimaryClip(ClipData.newPlainText("label", chatMessage.fullMsg))
                 dismiss()
             }
-            if (requireContext().prefs().getBoolean(C.CHAT_TRANSLATE, false) && (chatMessage.message != null || chatMessage.systemMsg != null) && Build.SUPPORTED_64_BIT_ABIS.firstOrNull() == "arm64-v8a") {
+            if (requireContext().prefs().getBoolean(C.CHAT_TRANSLATE, false) && (chatMessage.message != null || chatMessage.systemMsg != null) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && Build.SUPPORTED_64_BIT_ABIS.firstOrNull() == "arm64-v8a") {
                 translateMessage.visibility = View.VISIBLE
                 translateMessage.setOnClickListener {
                     listener.onTranslateMessageClicked(chatMessage, null)

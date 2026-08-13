@@ -8,12 +8,9 @@ import androidx.navigation.fragment.findNavController
 import androidx.paging.PagingDataAdapter
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import coil3.request.target
-import coil3.request.transformations
-import coil3.transform.CircleCropTransformation
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.FragmentSearchChannelsListItemBinding
 import com.github.andreyasadchy.xtra.model.ui.User
@@ -61,16 +58,16 @@ class ChannelSearchAdapter(
                     }
                     if (item.profileImage != null) {
                         userImage.visibility = View.VISIBLE
-                        fragment.requireContext().imageLoader.enqueue(
-                            ImageRequest.Builder(fragment.requireContext()).apply {
-                                data(item.profileImage)
+                        Glide.with(fragment)
+                            .load(item.profileImage)
+                            .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                            .transition(DrawableTransitionOptions.withCrossFade())
+                            .apply {
                                 if (context.prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true)) {
-                                    transformations(CircleCropTransformation())
+                                    circleCrop()
                                 }
-                                crossfade(true)
-                                target(userImage)
-                            }.build()
-                        )
+                            }
+                            .into(userImage)
                     } else {
                         userImage.visibility = View.GONE
                     }

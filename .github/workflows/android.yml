@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: [ master ]
+    branches: [ minSdk16 ]
 
 jobs:
   build:
@@ -10,9 +10,6 @@ jobs:
     steps:
     - name: Checkout sources
       uses: actions/checkout@v7
-      with:
-        fetch-depth: 0
-        filter: blob:none
     - name: Setup Java
       uses: actions/setup-java@v5
       with:
@@ -31,21 +28,18 @@ jobs:
         name: apk
         path: app/build/outputs/apk/release/*.apk
 
-    - name: Generate release notes
-      run: git log refs/tags/latest..HEAD --oneline --decorate=no > notes.txt
-
     - name: Update tag
       run: |
-        git tag -f latest
-        git push -f origin tag latest
+        git tag -f api16
+        git push -f origin tag api16
 
     - name: Delete release
       continue-on-error: true
       env:
         GH_TOKEN: ${{ github.token }}
-      run: gh release delete latest -y
+      run: gh release delete api16 -y
 
     - name: Create release
       env:
         GH_TOKEN: ${{ github.token }}
-      run: gh release create latest --title "Latest" --notes-file notes.txt --latest=true 'app/build/outputs/apk/release/*.apk'
+      run: gh release create api16 --title "Android 4 release" --notes "This release is for devices running Android 4.1 to 4.4" --latest=false 'app/build/outputs/apk/release/*.apk'

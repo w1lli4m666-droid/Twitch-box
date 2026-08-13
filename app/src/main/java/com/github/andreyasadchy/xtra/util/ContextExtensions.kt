@@ -3,12 +3,13 @@ package com.github.andreyasadchy.xtra.util
 import android.app.Activity
 import android.app.UiModeManager
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.SharedPreferences
-import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
+import android.view.WindowManager
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.res.use
@@ -25,10 +26,15 @@ fun Context.prefs(): SharedPreferences = PreferenceManager.getDefaultSharedPrefe
 
 fun Context.tokenPrefs(): SharedPreferences = getSharedPreferences("prefs2", Context.MODE_PRIVATE)
 
-/** True for Android TV devices, including older API 21 televisions without Leanback services. */
+/**
+ * Detects both official Android TV devices and older television boxes.
+ *
+ * The Leanback feature name is kept as a literal so loading this method remains safe on API 16,
+ * where PackageManager.FEATURE_LEANBACK does not exist yet.
+ */
 fun Context.isTelevision(): Boolean {
     val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
-    return packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
+    return packageManager.hasSystemFeature("android.software.leanback") ||
             uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
 }
 
@@ -36,9 +42,6 @@ fun Context.isTelevision(): Boolean {
 fun ConnectivityManager.isNetworkAvailableCompat(): Boolean {
     val systemReportsConnected = activeNetworkInfo?.isConnected == true
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return systemReportsConnected
-
-    // VALIDATED is deliberately not required: Android TV firmware often fails its captive-portal
-    // probe when a system proxy or VPN is enabled even though app traffic works normally.
     val hasInternetTransport = activeNetwork?.let(::getNetworkCapabilities)
         ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
     return hasInternetTransport || systemReportsConnected
@@ -281,8 +284,13 @@ fun Activity.applyTheme() {
         isAppearanceLightStatusBars = isLightTheme
         isAppearanceLightNavigationBars = isLightTheme
     }
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        @Suppress("DEPRECATION")
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
+            window.addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
+        }
     }
 }
 
@@ -291,5 +299,13 @@ fun Context.getAlertDialogBuilder(): AlertDialog.Builder {
         MaterialAlertDialogBuilder(this)
     } else {
         AlertDialog.Builder(this)
+    }
+}
+
+fun Context.getActivity(): Activity? {
+    return when (this) {
+        is Activity -> this
+        is ContextWrapper -> this.baseContext.getActivity()
+        else -> null
     }
 }

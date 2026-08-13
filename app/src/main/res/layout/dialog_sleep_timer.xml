@@ -42,6 +42,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="20dp"
+                android:layout_marginLeft="20dp"
                 android:text="@string/minutes"
                 android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textSize="20sp" />
@@ -53,8 +54,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
+            android:layout_marginLeft="10dp"
             android:layout_marginTop="7dp"
             android:layout_marginEnd="10dp"
+            android:layout_marginRight="10dp"
             android:layout_marginBottom="7dp"
             android:textSize="16sp"
             tools:text="@string/sleep_timer_lock_permissions" />

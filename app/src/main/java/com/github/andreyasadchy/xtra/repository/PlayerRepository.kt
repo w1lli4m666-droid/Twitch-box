@@ -38,7 +38,10 @@ import com.github.andreyasadchy.xtra.model.misc.STVEmoteSetResponse
 import com.github.andreyasadchy.xtra.model.ui.TranslatedChannel
 import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.NetworkUtils
+import com.github.andreyasadchy.xtra.util.NetworkUtils.body
 import com.github.andreyasadchy.xtra.util.NetworkUtils.executeAsync
+import com.github.andreyasadchy.xtra.util.NetworkUtils.request
+import com.github.andreyasadchy.xtra.util.NetworkUtils.toRequestBody
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -52,12 +55,9 @@ import kotlinx.serialization.json.putJsonObject
 import okhttp3.Credentials
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import okio.buffer
 import okio.source
 import org.chromium.net.CronetEngine
-import org.chromium.net.CronetProvider
-import org.chromium.net.QuicOptions
 import org.chromium.net.apihelpers.UploadDataProviders
 import org.json.JSONException
 import org.json.JSONObject
@@ -184,81 +184,24 @@ class PlayerRepository(
                         }
                     }
                     networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                        val cronetEngine = if (CronetProvider.getAllProviders(context).any { it.isEnabled }) {
-                            val proxyHeaders = if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                                mapOf("Proxy-Authorization" to Base64.encodeToString("$proxyUser:$proxyPassword".toByteArray(), Base64.NO_WRAP)).entries.toList()
-                            } else emptyList()
-                            val builder = CronetEngine.Builder(context).apply {
-                                val userAgent = "Cronet/" + defaultUserAgent.substringAfter("Cronet/", "").substringBefore(')')
-                                setUserAgent(userAgent)
-                                @QuicOptions.Experimental
-                                setQuicOptions(QuicOptions.builder().setHandshakeUserAgent(userAgent).build())
-                            }
-                            try {
-                                @org.chromium.net.ProxyOptions.Experimental
-                                builder.setProxyOptions(org.chromium.net.ProxyOptions(
-                                    listOf(
-                                        org.chromium.net.Proxy(
-                                            org.chromium.net.Proxy.HTTP,
-                                            proxyHost,
-                                            proxyPort,
-                                            cronetExecutor.value,
-                                            object : org.chromium.net.Proxy.Callback() {
-                                                override fun onBeforeTunnelRequest(request: Request) {
-                                                    request.proceed(proxyHeaders)
-                                                }
-
-                                                override fun onTunnelHeadersReceived(responseHeaders: List<Map.Entry<String?, String?>?>, statusCode: Int): Boolean {
-                                                    return true
-                                                }
-                                            }
-                                        )
-                                    )
-                                ))
-                            } catch (e: UnsupportedOperationException) {
-                                null
-                            }?.build()
-                        } else null
-                        if (cronetEngine != null) {
-                            val response = suspendCancellableCoroutine { continuation ->
-                                val timeout = NetworkUtils.CronetTimeout()
-                                val request = cronetEngine.newUrlRequestBuilder(
-                                    url,
-                                    NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                    cronetExecutor.value
-                                ).apply {
-                                    headers.forEach { addHeader(it.key, it.value) }
-                                    addHeader("Content-Type", "application/json")
-                                    setUploadDataProvider(UploadDataProviders.create(body.toByteArray()), cronetExecutor.value)
-                                }.build()
-                                timeout.start(request, continuation)
-                                request.start()
-                                continuation.invokeOnCancellation {
-                                    request.cancel()
-                                    timeout.stop()
+                        okHttpClient.value.newBuilder().apply {
+                            proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)))
+                            if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
+                                proxyAuthenticator { _, response ->
+                                    response.request.newBuilder().header(
+                                        "Proxy-Authorization", Credentials.basic(proxyUser, proxyPassword)
+                                    ).build()
                                 }
                             }
-                            json.decodeFromString<PlaybackAccessTokenResponse>(response.body.decodeToString())
-                        } else {
-                            okHttpClient.value.newBuilder().apply {
-                                proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)))
-                                if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                                    proxyAuthenticator { _, response ->
-                                        response.request.newBuilder().header(
-                                            "Proxy-Authorization", Credentials.basic(proxyUser, proxyPassword)
-                                        ).build()
-                                    }
-                                }
-                            }.build().newCall(Request.Builder().apply {
-                                url(url)
-                                headers.forEach {
-                                    addHeader(it.key, it.value)
-                                }
-                                header("Content-Type", "application/json")
-                                post(body.toRequestBody())
-                            }.build()).executeAsync().use { response ->
-                                json.decodeFromString<PlaybackAccessTokenResponse>(response.body.string())
+                        }.build().newCall(Request.Builder().apply {
+                            url(url)
+                            headers.forEach {
+                                addHeader(it.key, it.value)
                             }
+                            header("Content-Type", "application/json")
+                            post(body.toRequestBody())
+                        }.build()).executeAsync().use { response ->
+                            json.decodeFromString<PlaybackAccessTokenResponse>(response.body.string())
                         }
                     }
                     else -> {
@@ -390,84 +333,25 @@ class PlayerRepository(
                         }
                     }
                     networkLibrary == C.CRONET && cronetEngine.value != null -> {
-                        val cronetEngine = if (CronetProvider.getAllProviders(context).any { it.isEnabled }) {
-                            val proxyHeaders = if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                                mapOf("Proxy-Authorization" to Base64.encodeToString("$proxyUser:$proxyPassword".toByteArray(), Base64.NO_WRAP)).entries.toList()
-                            } else emptyList()
-                            val builder = CronetEngine.Builder(context).apply {
-                                val userAgent = "Cronet/" + defaultUserAgent.substringAfter("Cronet/", "").substringBefore(')')
-                                setUserAgent(userAgent)
-                                @QuicOptions.Experimental
-                                setQuicOptions(QuicOptions.builder().setHandshakeUserAgent(userAgent).build())
-                            }
-                            try {
-                                @org.chromium.net.ProxyOptions.Experimental
-                                builder.setProxyOptions(org.chromium.net.ProxyOptions(
-                                    listOf(
-                                        org.chromium.net.Proxy(
-                                            org.chromium.net.Proxy.HTTP,
-                                            proxyHost,
-                                            proxyPort,
-                                            cronetExecutor.value,
-                                            object : org.chromium.net.Proxy.Callback() {
-                                                override fun onBeforeTunnelRequest(request: Request) {
-                                                    request.proceed(proxyHeaders)
-                                                }
-
-                                                override fun onTunnelHeadersReceived(responseHeaders: List<Map.Entry<String?, String?>?>, statusCode: Int): Boolean {
-                                                    return true
-                                                }
-                                            }
-                                        )
-                                    )
-                                ))
-                            } catch (e: UnsupportedOperationException) {
-                                null
-                            }?.build()
-                        } else null
-                        if (cronetEngine != null) {
-                            val response = suspendCancellableCoroutine { continuation ->
-                                val timeout = NetworkUtils.CronetTimeout()
-                                val request = cronetEngine.newUrlRequestBuilder(
-                                    url,
-                                    NetworkUtils.ByteArrayCronetCallback(continuation, timeout),
-                                    cronetExecutor.value
-                                ).apply {
-                                    headers.forEach { addHeader(it.key, it.value) }
-                                    addHeader("Content-Type", "application/json")
-                                    setUploadDataProvider(UploadDataProviders.create(body.toByteArray()), cronetExecutor.value)
-                                }.build()
-                                timeout.start(request, continuation)
-                                request.start()
-                                continuation.invokeOnCancellation {
-                                    request.cancel()
-                                    timeout.stop()
+                        okHttpClient.value.newBuilder().apply {
+                            proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)))
+                            if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
+                                proxyAuthenticator { _, response ->
+                                    response.request.newBuilder().header(
+                                        "Proxy-Authorization", Credentials.basic(proxyUser, proxyPassword)
+                                    ).build()
                                 }
                             }
-                            response.body.inputStream().source().buffer().jsonReader().use {
+                        }.build().newCall(Request.Builder().apply {
+                            url(url)
+                            headers.forEach {
+                                addHeader(it.key, it.value)
+                            }
+                            header("Content-Type", "application/json")
+                            post(body.toRequestBody())
+                        }.build()).executeAsync().use { response ->
+                            response.body.byteStream().source().buffer().jsonReader().use {
                                 query.parseResponse(it)
-                            }
-                        } else {
-                            okHttpClient.value.newBuilder().apply {
-                                proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort)))
-                                if (!proxyUser.isNullOrBlank() && !proxyPassword.isNullOrBlank()) {
-                                    proxyAuthenticator { _, response ->
-                                        response.request.newBuilder().header(
-                                            "Proxy-Authorization", Credentials.basic(proxyUser, proxyPassword)
-                                        ).build()
-                                    }
-                                }
-                            }.build().newCall(Request.Builder().apply {
-                                url(url)
-                                headers.forEach {
-                                    addHeader(it.key, it.value)
-                                }
-                                header("Content-Type", "application/json")
-                                post(body.toRequestBody())
-                            }.build()).executeAsync().use { response ->
-                                response.body.byteStream().source().buffer().jsonReader().use {
-                                    query.parseResponse(it)
-                                }
                             }
                         }
                     }
@@ -617,7 +501,7 @@ class PlayerRepository(
                             appendQueryParameter("sig", accessToken?.signature)
                             appendQueryParameter("token", accessToken?.value)
                         }.build().toString()
-                        VideoQuality(name, quality.codecs, quality.bitrate, url)
+                        VideoQuality(name, quality.quality?.toIntOrNull(), quality.frameRate, quality.bitrate, quality.codecs, url)
                     } else null
                 }
             }
@@ -645,7 +529,7 @@ class PlayerRepository(
                             appendQueryParameter("sig", accessToken?.signature)
                             appendQueryParameter("token", accessToken?.value)
                         }.build().toString()
-                        VideoQuality(name, quality.codecs, quality.bitrate, url)
+                        VideoQuality(name, quality.quality?.toIntOrNull(), quality.frameRate?.toFloat(), quality.bitrate, quality.codecs, url)
                     } else null
                 }
             }

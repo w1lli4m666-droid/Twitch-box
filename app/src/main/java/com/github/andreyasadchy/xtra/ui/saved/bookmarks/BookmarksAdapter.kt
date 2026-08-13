@@ -10,13 +10,9 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import coil3.imageLoader
-import coil3.request.CachePolicy
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import coil3.request.target
-import coil3.request.transformations
-import coil3.transform.CircleCropTransformation
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.FragmentVideosListItemBinding
 import com.github.andreyasadchy.xtra.model.VideoPosition
@@ -155,14 +151,11 @@ class BookmarksAdapter(
                         deleteVideo(item)
                         true
                     }
-                    fragment.requireContext().imageLoader.enqueue(
-                        ImageRequest.Builder(fragment.requireContext()).apply {
-                            data(item.thumbnail)
-                            diskCachePolicy(CachePolicy.DISABLED)
-                            crossfade(true)
-                            target(thumbnail)
-                        }.build()
-                    )
+                    Glide.with(fragment)
+                        .load(item.thumbnail)
+                        .diskCacheStrategy(DiskCacheStrategy.NONE)
+                        .transition(DrawableTransitionOptions.withCrossFade())
+                        .into(userImage)
                     if (item.createdAt != null) {
                         val text = Instant.parseOrNull(item.createdAt)?.toEpochMilliseconds()?.takeIf { ms -> ms > 0 }?.let {
                             TwitchApiHelper.formatDate(context, it)
@@ -220,17 +213,16 @@ class BookmarksAdapter(
                     }
                     if (item.userLogo != null) {
                         userImage.visibility = View.VISIBLE
-                        fragment.requireContext().imageLoader.enqueue(
-                            ImageRequest.Builder(fragment.requireContext()).apply {
-                                data(item.userLogo)
-                                diskCachePolicy(CachePolicy.DISABLED)
+                        Glide.with(fragment)
+                            .load(item.userLogo)
+                            .diskCacheStrategy(DiskCacheStrategy.NONE)
+                            .transition(DrawableTransitionOptions.withCrossFade())
+                            .apply {
                                 if (context.prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true)) {
-                                    transformations(CircleCropTransformation())
+                                    circleCrop()
                                 }
-                                crossfade(true)
-                                target(userImage)
-                            }.build()
-                        )
+                            }
+                            .into(userImage)
                         userImage.setOnClickListener(channelListener)
                     } else {
                         userImage.visibility = View.GONE

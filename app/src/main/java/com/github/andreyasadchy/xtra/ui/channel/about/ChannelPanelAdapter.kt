@@ -11,10 +11,9 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import coil3.request.target
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.FragmentChannelPanelListItemBinding
 import com.github.andreyasadchy.xtra.model.ui.ChannelPanel
@@ -66,13 +65,11 @@ class ChannelPanelAdapter(
                     }
                     if (item.imageUrl != null) {
                         imageLayout.visibility = View.VISIBLE
-                        context.imageLoader.enqueue(
-                            ImageRequest.Builder(context).apply {
-                                data(item.imageUrl)
-                                crossfade(true)
-                                target(imageView)
-                            }.build()
-                        )
+                        Glide.with(fragment)
+                            .load(item.imageUrl)
+                            .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                            .transition(DrawableTransitionOptions.withCrossFade())
+                            .into(imageView)
                         if (item.linkUrl != null) {
                             imageView.setOnClickListener {
                                 try {

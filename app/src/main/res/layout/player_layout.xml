@@ -24,61 +24,82 @@
         android:src="@drawable/baseline_play_arrow_black_48"
         app:tint="@android:color/white" />
 
-    <Button
-        android:id="@+id/rewind"
-        android:layout_width="60dp"
-        android:layout_height="60dp"
+    <FrameLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_centerVertical="true"
         android:layout_marginStart="50dp"
-        android:background="@android:color/transparent"
-        android:foreground="@drawable/exo_styled_controls_rewind"
-        android:gravity="center|bottom"
-        android:insetBottom="0dp"
-        android:paddingLeft="0dp"
-        android:paddingRight="0dp"
-        android:paddingBottom="20dp"
-        android:textColor="@android:color/white"
-        android:textSize="10sp"
-        android:textStyle="bold"
-        app:backgroundTint="@android:color/white"
-        app:tint="@android:color/white"
-        tools:text="10" />
+        android:layout_marginLeft="50dp"
+        android:addStatesFromChildren="true">
 
-    <Button
-        android:id="@+id/fastForward"
-        android:layout_width="60dp"
-        android:layout_height="60dp"
+        <Button
+            android:id="@+id/rewind"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:background="@drawable/exo_styled_controls_rewind"
+            android:foreground="@drawable/exo_styled_controls_rewind"
+            android:gravity="center|bottom"
+            android:insetBottom="0dp"
+            android:paddingLeft="0dp"
+            android:paddingRight="0dp"
+            android:paddingBottom="20dp"
+            android:textColor="@android:color/white"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            app:backgroundTint="@android:color/white"
+            app:tint="@android:color/white"
+            tools:text="10" />
+
+    </FrameLayout>
+
+    <FrameLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_alignParentEnd="true"
+        android:layout_alignParentRight="true"
         android:layout_centerVertical="true"
         android:layout_marginEnd="50dp"
-        android:background="@android:color/transparent"
-        android:foreground="@drawable/exo_styled_controls_fastforward"
-        android:gravity="center|bottom"
-        android:insetBottom="0dp"
-        android:paddingLeft="0dp"
-        android:paddingRight="0dp"
-        android:paddingBottom="20dp"
-        android:textColor="@android:color/white"
-        android:textSize="10sp"
-        android:textStyle="bold"
-        app:backgroundTint="@android:color/white"
-        app:tint="@android:color/white"
-        tools:text="10" />
+        android:layout_marginRight="50dp"
+        android:addStatesFromChildren="true">
+
+        <Button
+            android:id="@+id/fastForward"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:background="@drawable/exo_styled_controls_fastforward"
+            android:foreground="@drawable/exo_styled_controls_fastforward"
+            android:gravity="center|bottom"
+            android:insetBottom="0dp"
+            android:paddingLeft="0dp"
+            android:paddingRight="0dp"
+            android:paddingBottom="20dp"
+            android:textColor="@android:color/white"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            app:backgroundTint="@android:color/white"
+            app:tint="@android:color/white"
+            tools:text="10" />
+
+    </FrameLayout>
 
     <LinearLayout
         android:id="@+id/topLeftLayout"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentStart="true"
+        android:layout_alignParentLeft="true"
         android:layout_marginStart="10dp"
+        android:layout_marginLeft="10dp"
         android:layout_marginTop="5dp"
-        android:layout_toStartOf="@id/topRightLayout">
+        android:layout_toStartOf="@id/topRightLayout"
+        android:layout_toLeftOf="@id/topRightLayout">
 
         <ImageButton
             android:id="@+id/minimize"
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:layout_marginEnd="5dp"
+            android:layout_marginRight="5dp"
             android:background="@android:color/transparent"
             android:src="@drawable/baseline_expand_more_black_48"
             android:visibility="gone"
@@ -91,6 +112,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
             android:layout_marginEnd="10dp"
+            android:layout_marginRight="10dp"
             android:orientation="vertical">
 
             <TextView
@@ -156,8 +178,10 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentEnd="true"
+        android:layout_alignParentRight="true"
         android:layout_marginTop="5dp"
-        android:layout_marginEnd="10dp">
+        android:layout_marginEnd="10dp"
+        android:layout_marginRight="10dp">
 
         <ImageButton
             android:id="@+id/download"
@@ -237,7 +261,9 @@
         android:layout_height="wrap_content"
         android:layout_above="@id/bottomLayout"
         android:layout_alignParentStart="true"
+        android:layout_alignParentLeft="true"
         android:layout_marginStart="10dp"
+        android:layout_marginLeft="10dp"
         android:layout_marginBottom="5dp">
 
         <ImageButton
@@ -308,7 +334,9 @@
         android:layout_height="wrap_content"
         android:layout_above="@id/bottomLayout"
         android:layout_alignParentEnd="true"
+        android:layout_alignParentRight="true"
         android:layout_marginEnd="10dp"
+        android:layout_marginRight="10dp"
         android:layout_marginBottom="5dp">
 
         <ImageButton
@@ -366,6 +394,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="6dp"
+            android:layout_marginRight="6dp"
             android:visibility="gone"
             tools:visibility="visible">
 
@@ -375,6 +404,7 @@
                 android:layout_height="12dp"
                 android:layout_marginTop="9dp"
                 android:layout_marginEnd="4dp"
+                android:layout_marginRight="4dp"
                 android:background="@android:color/transparent"
                 android:src="@drawable/baseline_circle_24"
                 android:visibility="gone"
@@ -425,6 +455,7 @@
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:layout_marginStart="7dp"
+        android:layout_marginLeft="7dp"
         android:layout_marginBottom="10dp"
         android:background="@android:color/transparent"
         android:gravity="center"
@@ -437,13 +468,16 @@
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:layout_toStartOf="@id/duration"
-        android:layout_toEndOf="@id/position">
+        android:layout_toLeftOf="@id/duration"
+        android:layout_toEndOf="@id/position"
+        android:layout_toRightOf="@id/position">
 
         <androidx.media3.ui.DefaultTimeBar
             android:id="@+id/progressBar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginEnd="5dp"
+            android:layout_marginRight="5dp"
             android:layout_marginBottom="5dp" />
 
     </LinearLayout>
@@ -453,8 +487,10 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentEnd="true"
+        android:layout_alignParentRight="true"
         android:layout_alignParentBottom="true"
         android:layout_marginEnd="10dp"
+        android:layout_marginRight="10dp"
         android:layout_marginBottom="10dp"
         android:textColor="@android:color/white"
         tools:text="1:12:16" />

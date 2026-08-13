@@ -3,6 +3,7 @@ package com.github.andreyasadchy.xtra.ui.team
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -23,12 +24,9 @@ import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupWithNavController
 import androidx.paging.PagingDataAdapter
 import androidx.recyclerview.widget.RecyclerView
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import coil3.request.target
-import coil3.request.transformations
-import coil3.transform.CircleCropTransformation
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.FragmentTeamBinding
 import com.github.andreyasadchy.xtra.model.ui.Stream
@@ -75,8 +73,14 @@ class TeamFragment : PagedListFragment(), Scrollable, IntegrityDialog.Listener {
         super.onViewCreated(view, savedInstanceState)
         with(binding) {
             val activity = requireActivity() as MainActivity
-            if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                appBar.setExpanded(false, false)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                    appBar.setExpanded(false, false)
+                }
+            } else {
+                if (activity.orientation == 2) {
+                    appBar.setExpanded(false, false)
+                }
             }
             val isLoggedIn = !TwitchApiHelper.getGQLHeaders(requireContext(), true)[C.HEADER_TOKEN].isNullOrBlank() ||
                     !TwitchApiHelper.getHelixHeaders(requireContext())[C.HEADER_TOKEN].isNullOrBlank()
@@ -237,28 +241,26 @@ class TeamFragment : PagedListFragment(), Scrollable, IntegrityDialog.Listener {
             }
             if (team.logoUrl != null) {
                 logoImage.visibility = View.VISIBLE
-                requireContext().imageLoader.enqueue(
-                    ImageRequest.Builder(requireContext()).apply {
-                        data(team.logoUrl)
+                Glide.with(this@TeamFragment)
+                    .load(team.logoUrl)
+                    .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                    .transition(DrawableTransitionOptions.withCrossFade())
+                    .apply {
                         if (requireContext().prefs().getBoolean(C.UI_ROUND_USER_IMAGE, true)) {
-                            transformations(CircleCropTransformation())
+                            circleCrop()
                         }
-                        crossfade(true)
-                        target(logoImage)
-                    }.build()
-                )
+                    }
+                    .into(logoImage)
             } else {
                 logoImage.visibility = View.GONE
             }
             if (team.bannerUrl != null) {
                 bannerImage.visibility = View.VISIBLE
-                requireContext().imageLoader.enqueue(
-                    ImageRequest.Builder(requireContext()).apply {
-                        data(team.bannerUrl)
-                        crossfade(true)
-                        target(bannerImage)
-                    }.build()
-                )
+                Glide.with(this@TeamFragment)
+                    .load(team.bannerUrl)
+                    .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                    .transition(DrawableTransitionOptions.withCrossFade())
+                    .into(bannerImage)
             } else {
                 bannerImage.visibility = View.GONE
             }

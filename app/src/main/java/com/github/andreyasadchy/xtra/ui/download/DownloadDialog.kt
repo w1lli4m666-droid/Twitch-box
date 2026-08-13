@@ -3,6 +3,8 @@ package com.github.andreyasadchy.xtra.ui.download
 import android.Manifest
 import android.app.Activity
 import android.app.Dialog
+import android.content.ActivityNotFoundException
+import android.content.ContentResolver
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -11,6 +13,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.text.Editable
+import android.text.InputType
 import android.text.TextWatcher
 import android.text.format.DateUtils
 import android.view.View
@@ -20,6 +23,7 @@ import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.view.children
 import androidx.core.view.isVisible
@@ -39,6 +43,7 @@ import com.github.andreyasadchy.xtra.util.C
 import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -73,11 +78,13 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
         private const val KEY_VIDEO_TOTAL_DURATION = "totalDuration"
         private const val KEY_VIDEO_CURRENT_POSITION = "currentPosition"
         private const val KEY_QUALITY_NAMES = "quality_names"
-        private const val KEY_QUALITY_CODECS = "quality_codecs"
+        private const val KEY_QUALITY_RESOLUTIONS = "quality_resolutions"
+        private const val KEY_QUALITY_FRAME_RATES = "quality_frame_rates"
         private const val KEY_QUALITY_BITRATES = "quality_bitrates"
+        private const val KEY_QUALITY_CODECS = "quality_codecs"
         private const val KEY_QUALITY_URLS = "quality_urls"
 
-        fun newStreamInstance(id: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, gameId: String?, gameSlug: String?, gameName: String?, title: String?, thumbnail: String?, createdAt: String?, qualityNames: Array<String>? = null, qualityCodecs: Array<String>? = null, qualityBitrates: Array<String>? = null, qualityUrls: Array<String>? = null): DownloadDialog {
+        fun newStreamInstance(id: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, gameId: String?, gameSlug: String?, gameName: String?, title: String?, thumbnail: String?, createdAt: String?, qualityNames: Array<String>? = null, qualityResolutions: Array<String>? = null, qualityFrameRates: Array<String>? = null, qualityBitrates: Array<String>? = null, qualityCodecs: Array<String>? = null, qualityUrls: Array<String>? = null): DownloadDialog {
             return DownloadDialog().apply {
                 arguments = Bundle().apply {
                     putString(KEY_TYPE, STREAM)
@@ -93,14 +100,16 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                     putString(KEY_THUMBNAIL, thumbnail)
                     putString(KEY_CREATED_AT, createdAt)
                     putStringArray(KEY_QUALITY_NAMES, qualityNames)
-                    putStringArray(KEY_QUALITY_CODECS, qualityCodecs)
+                    putStringArray(KEY_QUALITY_RESOLUTIONS, qualityResolutions)
+                    putStringArray(KEY_QUALITY_FRAME_RATES, qualityFrameRates)
                     putStringArray(KEY_QUALITY_BITRATES, qualityBitrates)
+                    putStringArray(KEY_QUALITY_CODECS, qualityCodecs)
                     putStringArray(KEY_QUALITY_URLS, qualityUrls)
                 }
             }
         }
 
-        fun newVideoInstance(id: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, gameId: String?, gameSlug: String?, gameName: String?, title: String?, thumbnail: String?, createdAt: String?, durationSeconds: Int?, type: String?, animatedPreviewUrl: String?, totalDuration: Long? = null, currentPosition: Long? = null, qualityNames: Array<String>? = null, qualityCodecs: Array<String>? = null, qualityBitrates: Array<String>? = null, qualityUrls: Array<String>? = null): DownloadDialog {
+        fun newVideoInstance(id: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, gameId: String?, gameSlug: String?, gameName: String?, title: String?, thumbnail: String?, createdAt: String?, durationSeconds: Int?, type: String?, animatedPreviewUrl: String?, totalDuration: Long? = null, currentPosition: Long? = null, qualityNames: Array<String>? = null, qualityResolutions: Array<String>? = null, qualityFrameRates: Array<String>? = null, qualityBitrates: Array<String>? = null, qualityCodecs: Array<String>? = null, qualityUrls: Array<String>? = null): DownloadDialog {
             return DownloadDialog().apply {
                 arguments = Bundle().apply {
                     putString(KEY_TYPE, VIDEO)
@@ -121,14 +130,16 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                     putLong(KEY_VIDEO_TOTAL_DURATION, totalDuration ?: -1)
                     putLong(KEY_VIDEO_CURRENT_POSITION, currentPosition ?: -1)
                     putStringArray(KEY_QUALITY_NAMES, qualityNames)
-                    putStringArray(KEY_QUALITY_CODECS, qualityCodecs)
+                    putStringArray(KEY_QUALITY_RESOLUTIONS, qualityResolutions)
+                    putStringArray(KEY_QUALITY_FRAME_RATES, qualityFrameRates)
                     putStringArray(KEY_QUALITY_BITRATES, qualityBitrates)
+                    putStringArray(KEY_QUALITY_CODECS, qualityCodecs)
                     putStringArray(KEY_QUALITY_URLS, qualityUrls)
                 }
             }
         }
 
-        fun newClipInstance(id: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, gameId: String?, gameSlug: String?, gameName: String?, title: String?, thumbnail: String?, createdAt: String?, durationSeconds: Int?, videoId: String?, videoOffsetSeconds: Int?, videoCreatedAt: String?, qualityNames: Array<String>? = null, qualityCodecs: Array<String>? = null, qualityBitrates: Array<String>? = null, qualityUrls: Array<String>? = null): DownloadDialog {
+        fun newClipInstance(id: String?, channelId: String?, channelLogin: String?, channelName: String?, channelImage: String?, gameId: String?, gameSlug: String?, gameName: String?, title: String?, thumbnail: String?, createdAt: String?, durationSeconds: Int?, videoId: String?, videoOffsetSeconds: Int?, videoCreatedAt: String?, qualityNames: Array<String>? = null, qualityResolutions: Array<String>? = null, qualityFrameRates: Array<String>? = null, qualityBitrates: Array<String>? = null, qualityCodecs: Array<String>? = null, qualityUrls: Array<String>? = null): DownloadDialog {
             return DownloadDialog().apply {
                 arguments = Bundle().apply {
                     putString(KEY_TYPE, CLIP)
@@ -148,8 +159,10 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                     putInt(KEY_VIDEO_OFFSET_SECONDS, videoOffsetSeconds ?: -1)
                     putString(KEY_VIDEO_CREATED_AT, videoCreatedAt)
                     putStringArray(KEY_QUALITY_NAMES, qualityNames)
-                    putStringArray(KEY_QUALITY_CODECS, qualityCodecs)
+                    putStringArray(KEY_QUALITY_RESOLUTIONS, qualityResolutions)
+                    putStringArray(KEY_QUALITY_FRAME_RATES, qualityFrameRates)
                     putStringArray(KEY_QUALITY_BITRATES, qualityBitrates)
+                    putStringArray(KEY_QUALITY_CODECS, qualityCodecs)
                     putStringArray(KEY_QUALITY_URLS, qualityUrls)
                 }
             }
@@ -161,11 +174,31 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
     private val viewModel: DownloadViewModel by viewModels { DownloadViewModelFactory }
     private var sharedPath: String? = null
     private var directoryResultLauncher: ActivityResultLauncher<Intent>? = null
+    private var storage: List<Pair<String, String>> = emptyList()
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         _binding = DialogVideoDownloadBinding.inflate(layoutInflater)
         val builder = requireContext().getAlertDialogBuilder()
             .setView(binding.root)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP
+            && ActivityCompat.checkSelfPermission(requireActivity(), Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+            && ActivityCompat.checkSelfPermission(requireActivity(), Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+        ) {
+            if (ActivityCompat.shouldShowRequestPermissionRationale(requireActivity(), Manifest.permission.WRITE_EXTERNAL_STORAGE) ||
+                ActivityCompat.shouldShowRequestPermissionRationale(requireActivity(), Manifest.permission.READ_EXTERNAL_STORAGE)) {
+                requireActivity().getAlertDialogBuilder()
+                    .setMessage(R.string.storage_permission_message)
+                    .setTitle(R.string.storage_permission_title)
+                    .setPositiveButton(android.R.string.ok) { _, _ ->
+                        ActivityCompat.requestPermissions(requireActivity(), arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE), 0)
+                    }
+                    .setNegativeButton(android.R.string.cancel) { _, _ -> Toast.makeText(requireActivity(), R.string.permission_denied, Toast.LENGTH_LONG).show() }
+                    .show()
+            } else {
+                ActivityCompat.requestPermissions(requireActivity(), arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE), 0)
+            }
+            dismiss()
+        }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.integrity.collect {
@@ -173,17 +206,51 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                 }
             }
         }
-        directoryResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
-                result.data?.data?.let {
-                    when {
-                        it.authority?.startsWith("com.android.providers") == true -> Toast.makeText(requireActivity(), R.string.invalid_directory, Toast.LENGTH_LONG).show()
-                        else -> {
-                            requireContext().contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                            sharedPath = it.toString()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            directoryResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                if (result.resultCode == Activity.RESULT_OK) {
+                    result.data?.data?.let {
+                        when {
+                            it.authority?.startsWith("com.android.providers") == true -> Toast.makeText(requireActivity(), R.string.invalid_directory, Toast.LENGTH_LONG).show()
+                            else -> {
+                                requireContext().contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                                sharedPath = it.toString()
+                                binding.download.isEnabled = true
+                                binding.storageSelectionContainer.directory.visibility = View.VISIBLE
+                                binding.storageSelectionContainer.directory.text = it.path?.substringAfter("/tree/")?.removeSuffix(":")
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            directoryResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                if (result.resultCode == Activity.RESULT_OK) {
+                    result.data?.data?.let {
+                        val isShared = it.scheme == ContentResolver.SCHEME_CONTENT
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && isShared) {
+                            val uri = Uri.decode(it.path).substringAfter("/document/")
+                            val storageName = uri.substringBefore(":")
+                            val storagePath = if (storageName.equals("primary", true)) {
+                                storage.firstOrNull()
+                            } else {
+                                if (storage.size >= 2) {
+                                    storage.lastOrNull()
+                                } else {
+                                    storage.firstOrNull()
+                                }
+                            }?.second?.substringBefore("/Android/data") ?: "/storage/emulated/0"
+                            val path = uri.substringAfter(":").substringBeforeLast("/")
+                            val fullUri = "$storagePath/$path"
+                            sharedPath = fullUri
                             binding.download.isEnabled = true
                             binding.storageSelectionContainer.directory.visibility = View.VISIBLE
-                            binding.storageSelectionContainer.directory.text = it.path?.substringAfter("/tree/")?.removeSuffix(":")
+                            binding.storageSelectionContainer.directory.text = fullUri
+                        } else {
+                            sharedPath = it.path?.substringBeforeLast("/")
+                            binding.download.isEnabled = true
+                            binding.storageSelectionContainer.directory.visibility = View.VISIBLE
+                            binding.storageSelectionContainer.directory.text = it.path?.substringBeforeLast("/")
                         }
                     }
                 }
@@ -205,11 +272,15 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                     gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext(), requireContext().prefs().getBoolean(C.TOKEN_INCLUDE_TOKEN_STREAM, true)),
                     channelLogin = requireArguments().getString(KEY_CHANNEL_LOGIN),
                     qualities = requireArguments().getStringArray(KEY_QUALITY_NAMES)?.let { names ->
-                        requireArguments().getStringArray(KEY_QUALITY_CODECS)?.let { codecs ->
-                            requireArguments().getStringArray(KEY_QUALITY_BITRATES)?.let { bitrates ->
-                                requireArguments().getStringArray(KEY_QUALITY_URLS)?.let { urls ->
-                                    names.mapIndexed { index, name ->
-                                        VideoQuality(name, codecs.getOrNull(index).takeIf { it != "null" }, bitrates.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), urls.getOrNull(index))
+                        requireArguments().getStringArray(KEY_QUALITY_RESOLUTIONS)?.let { resolutions ->
+                            requireArguments().getStringArray(KEY_QUALITY_FRAME_RATES)?.let { frameRates ->
+                                requireArguments().getStringArray(KEY_QUALITY_BITRATES)?.let { bitrates ->
+                                    requireArguments().getStringArray(KEY_QUALITY_CODECS)?.let { codecs ->
+                                        requireArguments().getStringArray(KEY_QUALITY_URLS)?.let { urls ->
+                                            names.mapIndexed { index, name ->
+                                                VideoQuality(name, resolutions.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), frameRates.getOrNull(index).takeIf { it != "null" }?.toFloatOrNull(), bitrates.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), codecs.getOrNull(index).takeIf { it != "null" }, urls.getOrNull(index))
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -255,11 +326,15 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                     animatedPreviewUrl = requireArguments().getString(KEY_VIDEO_ANIMATED_PREVIEW),
                     videoType = requireArguments().getString(KEY_VIDEO_TYPE),
                     qualities = requireArguments().getStringArray(KEY_QUALITY_NAMES)?.let { names ->
-                        requireArguments().getStringArray(KEY_QUALITY_CODECS)?.let { codecs ->
-                            requireArguments().getStringArray(KEY_QUALITY_BITRATES)?.let { bitrates ->
-                                requireArguments().getStringArray(KEY_QUALITY_URLS)?.let { urls ->
-                                    names.mapIndexed { index, name ->
-                                        VideoQuality(name, codecs.getOrNull(index).takeIf { it != "null" }, bitrates.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), urls.getOrNull(index))
+                        requireArguments().getStringArray(KEY_QUALITY_RESOLUTIONS)?.let { resolutions ->
+                            requireArguments().getStringArray(KEY_QUALITY_FRAME_RATES)?.let { frameRates ->
+                                requireArguments().getStringArray(KEY_QUALITY_BITRATES)?.let { bitrates ->
+                                    requireArguments().getStringArray(KEY_QUALITY_CODECS)?.let { codecs ->
+                                        requireArguments().getStringArray(KEY_QUALITY_URLS)?.let { urls ->
+                                            names.mapIndexed { index, name ->
+                                                VideoQuality(name, resolutions.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), frameRates.getOrNull(index).takeIf { it != "null" }?.toFloatOrNull(), bitrates.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), codecs.getOrNull(index).takeIf { it != "null" }, urls.getOrNull(index))
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -285,11 +360,15 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                     gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext()),
                     clipId = requireArguments().getString(KEY_CLIP_ID),
                     qualities = requireArguments().getStringArray(KEY_QUALITY_NAMES)?.let { names ->
-                        requireArguments().getStringArray(KEY_QUALITY_CODECS)?.let { codecs ->
-                            requireArguments().getStringArray(KEY_QUALITY_BITRATES)?.let { bitrates ->
-                                requireArguments().getStringArray(KEY_QUALITY_URLS)?.let { urls ->
-                                    names.mapIndexed { index, name ->
-                                        VideoQuality(name, codecs.getOrNull(index).takeIf { it != "null" }, bitrates.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), urls.getOrNull(index))
+                        requireArguments().getStringArray(KEY_QUALITY_RESOLUTIONS)?.let { resolutions ->
+                            requireArguments().getStringArray(KEY_QUALITY_FRAME_RATES)?.let { frameRates ->
+                                requireArguments().getStringArray(KEY_QUALITY_BITRATES)?.let { bitrates ->
+                                    requireArguments().getStringArray(KEY_QUALITY_CODECS)?.let { codecs ->
+                                        requireArguments().getStringArray(KEY_QUALITY_URLS)?.let { urls ->
+                                            names.mapIndexed { index, name ->
+                                                VideoQuality(name, resolutions.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), frameRates.getOrNull(index).takeIf { it != "null" }?.toFloatOrNull(), bitrates.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), codecs.getOrNull(index).takeIf { it != "null" }, urls.getOrNull(index))
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -308,7 +387,7 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
             it.isVisible = it.id != R.id.progressBar && it.id != R.id.timeLayout && it.id != R.id.sharedStorageLayout && it.id != R.id.appStorageLayout
         }
         val storageLocations = resources.getStringArray(R.array.spinnerStorage)
-        val storage = requireContext().getExternalFilesDirs(".downloads").mapIndexedNotNull { index, file ->
+        val storage = ContextCompat.getExternalFilesDirs(requireContext(), ".downloads").mapIndexedNotNull { index, file ->
             file?.absolutePath?.let { path ->
                 if (index == 0) {
                     getString(R.string.internal_storage) to path
@@ -319,6 +398,7 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                 }
             }
         }
+        this.storage = storage
         with(binding) {
             val hideCodecs = qualities.all {
                 val codec = it.codecs?.substringBefore('.')
@@ -327,8 +407,8 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
             val qualityMap = mutableListOf<Pair<String?, VideoQuality>>()
             qualities.forEach { quality ->
                 val name = when (quality.name) {
-                    "source" -> getString(R.string.source)
-                    "audio_only" -> getString(R.string.audio_only)
+                    VideoQuality.SOURCE_QUALITY -> getString(R.string.source)
+                    VideoQuality.AUDIO_ONLY_QUALITY -> getString(R.string.audio_only)
                     else -> {
                         if (hideCodecs) {
                             quality.name
@@ -357,6 +437,13 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                 val selectedQuality = viewModel.selectedQuality ?: array.first()
                 setSimpleItems(array)
                 setText(selectedQuality, false)
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                    isFocusable = true
+                    isEnabled = false
+                    setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface))
+                } else {
+                    setRawInputType(InputType.TYPE_NULL)
+                }
             }
             if (type == VIDEO) {
                 timeLayout.visibility = View.VISIBLE
@@ -429,11 +516,23 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                             putBoolean(C.DOWNLOAD_CHAT, downloadChat)
                             putBoolean(C.DOWNLOAD_CHAT_EMOTES, downloadChatEmotes)
                         }
-                        directoryResultLauncher?.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                putExtra(DocumentsContract.EXTRA_INITIAL_URI, sharedPath)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            directoryResultLauncher?.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    putExtra(DocumentsContract.EXTRA_INITIAL_URI, sharedPath)
+                                }
+                            })
+                        } else {
+                            try {
+                                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                                    addCategory(Intent.CATEGORY_OPENABLE)
+                                    setType("*/*")
+                                }
+                                directoryResultLauncher?.launch(intent)
+                            } catch (e: ActivityNotFoundException) {
+                                Toast.makeText(requireActivity(), R.string.no_file_manager_found, Toast.LENGTH_LONG).show()
                             }
-                        })
+                        }
                     }
                     radioGroup.removeAllViews()
                     radioGroup.clearCheck()
@@ -687,11 +786,15 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                     gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext(), requireContext().prefs().getBoolean(C.TOKEN_INCLUDE_TOKEN_STREAM, true)),
                     channelLogin = requireArguments().getString(KEY_CHANNEL_LOGIN),
                     qualities = requireArguments().getStringArray(KEY_QUALITY_NAMES)?.let { names ->
-                        requireArguments().getStringArray(KEY_QUALITY_CODECS)?.let { codecs ->
-                            requireArguments().getStringArray(KEY_QUALITY_BITRATES)?.let { bitrates ->
-                                requireArguments().getStringArray(KEY_QUALITY_URLS)?.let { urls ->
-                                    names.mapIndexed { index, name ->
-                                        VideoQuality(name, codecs.getOrNull(index).takeIf { it != "null" }, bitrates.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), urls.getOrNull(index))
+                        requireArguments().getStringArray(KEY_QUALITY_RESOLUTIONS)?.let { resolutions ->
+                            requireArguments().getStringArray(KEY_QUALITY_FRAME_RATES)?.let { frameRates ->
+                                requireArguments().getStringArray(KEY_QUALITY_BITRATES)?.let { bitrates ->
+                                    requireArguments().getStringArray(KEY_QUALITY_CODECS)?.let { codecs ->
+                                        requireArguments().getStringArray(KEY_QUALITY_URLS)?.let { urls ->
+                                            names.mapIndexed { index, name ->
+                                                VideoQuality(name, resolutions.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), frameRates.getOrNull(index).takeIf { it != "null" }?.toFloatOrNull(), bitrates.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), codecs.getOrNull(index).takeIf { it != "null" }, urls.getOrNull(index))
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -712,11 +815,15 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                     animatedPreviewUrl = requireArguments().getString(KEY_VIDEO_ANIMATED_PREVIEW),
                     videoType = requireArguments().getString(KEY_VIDEO_TYPE),
                     qualities = requireArguments().getStringArray(KEY_QUALITY_NAMES)?.let { names ->
-                        requireArguments().getStringArray(KEY_QUALITY_CODECS)?.let { codecs ->
-                            requireArguments().getStringArray(KEY_QUALITY_BITRATES)?.let { bitrates ->
-                                requireArguments().getStringArray(KEY_QUALITY_URLS)?.let { urls ->
-                                    names.mapIndexed { index, name ->
-                                        VideoQuality(name, codecs.getOrNull(index).takeIf { it != "null" }, bitrates.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), urls.getOrNull(index))
+                        requireArguments().getStringArray(KEY_QUALITY_RESOLUTIONS)?.let { resolutions ->
+                            requireArguments().getStringArray(KEY_QUALITY_FRAME_RATES)?.let { frameRates ->
+                                requireArguments().getStringArray(KEY_QUALITY_BITRATES)?.let { bitrates ->
+                                    requireArguments().getStringArray(KEY_QUALITY_CODECS)?.let { codecs ->
+                                        requireArguments().getStringArray(KEY_QUALITY_URLS)?.let { urls ->
+                                            names.mapIndexed { index, name ->
+                                                VideoQuality(name, resolutions.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), frameRates.getOrNull(index).takeIf { it != "null" }?.toFloatOrNull(), bitrates.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), codecs.getOrNull(index).takeIf { it != "null" }, urls.getOrNull(index))
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -733,11 +840,15 @@ class DownloadDialog : DialogFragment(), IntegrityDialog.Listener {
                     gqlHeaders = TwitchApiHelper.getGQLHeaders(requireContext()),
                     clipId = requireArguments().getString(KEY_CLIP_ID),
                     qualities = requireArguments().getStringArray(KEY_QUALITY_NAMES)?.let { names ->
-                        requireArguments().getStringArray(KEY_QUALITY_CODECS)?.let { codecs ->
-                            requireArguments().getStringArray(KEY_QUALITY_BITRATES)?.let { bitrates ->
-                                requireArguments().getStringArray(KEY_QUALITY_URLS)?.let { urls ->
-                                    names.mapIndexed { index, name ->
-                                        VideoQuality(name, codecs.getOrNull(index).takeIf { it != "null" }, bitrates.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), urls.getOrNull(index))
+                        requireArguments().getStringArray(KEY_QUALITY_RESOLUTIONS)?.let { resolutions ->
+                            requireArguments().getStringArray(KEY_QUALITY_FRAME_RATES)?.let { frameRates ->
+                                requireArguments().getStringArray(KEY_QUALITY_BITRATES)?.let { bitrates ->
+                                    requireArguments().getStringArray(KEY_QUALITY_CODECS)?.let { codecs ->
+                                        requireArguments().getStringArray(KEY_QUALITY_URLS)?.let { urls ->
+                                            names.mapIndexed { index, name ->
+                                                VideoQuality(name, resolutions.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), frameRates.getOrNull(index).takeIf { it != "null" }?.toFloatOrNull(), bitrates.getOrNull(index).takeIf { it != "null" }?.toIntOrNull(), codecs.getOrNull(index).takeIf { it != "null" }, urls.getOrNull(index))
+                                            }
+                                        }
                                     }
                                 }
                             }

@@ -7,10 +7,9 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import coil3.request.target
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.databinding.FragmentGamesListItemBinding
 import com.github.andreyasadchy.xtra.model.ui.Game
@@ -50,13 +49,11 @@ class PlayerGamesDialogAdapter(
                 }
                 if (item?.boxArt != null) {
                     gameImage.visibility = View.VISIBLE
-                    fragment.requireContext().imageLoader.enqueue(
-                        ImageRequest.Builder(fragment.requireContext()).apply {
-                            data(item.boxArt)
-                            crossfade(true)
-                            target(gameImage)
-                        }.build()
-                    )
+                    Glide.with(fragment)
+                        .load(item.boxArt)
+                        .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                        .transition(DrawableTransitionOptions.withCrossFade())
+                        .into(gameImage)
                 } else {
                     gameImage.visibility = View.GONE
                 }

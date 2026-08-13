@@ -1,7 +1,7 @@
 package com.github.andreyasadchy.xtra.ui.saved.downloads
-import com.github.andreyasadchy.xtra.util.isActiveNetworkCellularCompat
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.ContentResolver
 import android.content.Context
@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.os.IBinder
@@ -19,8 +20,10 @@ import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.LinearLayout
 import android.widget.RadioButton
+import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
@@ -69,22 +72,36 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        fileResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
-                result.data?.data?.let {
-                    viewModel.selectedVideo?.let { video ->
-                        requireContext().contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                        viewModel.moveToSharedStorage(it, video)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            fileResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                if (result.resultCode == Activity.RESULT_OK) {
+                    result.data?.data?.let {
+                        viewModel.selectedVideo?.let { video ->
+                            requireContext().contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                            viewModel.moveToSharedStorage(it, video)
+                        }
                     }
                 }
             }
         }
-        chatFileResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
-                result.data?.data?.let {
-                    viewModel.selectedVideo?.let { video ->
-                        requireContext().contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                        viewModel.updateChatUrl(it, video)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            chatFileResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                if (result.resultCode == Activity.RESULT_OK) {
+                    result.data?.data?.let {
+                        viewModel.selectedVideo?.let { video ->
+                            requireContext().contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                            viewModel.updateChatUrl(it, video)
+                        }
+                    }
+                }
+            }
+        } else {
+            chatFileResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                if (result.resultCode == Activity.RESULT_OK) {
+                    result.data?.data?.path?.let {
+                        viewModel.selectedVideo?.let { video ->
+                            viewModel.updateChatUrl(it.toUri(), video)
+                        }
                     }
                 }
             }
@@ -132,8 +149,13 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
             },
             resumeDownload = {
                 val waitForWifi = if (requireContext().prefs().getBoolean(C.DOWNLOAD_WIFI_ONLY, false)) {
-                    val connectivityManager = requireContext().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-                    connectivityManager.isActiveNetworkCellularCompat()
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        val connectivityManager = requireContext().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                        val networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
+                        networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                    } else {
+                        false
+                    }
                 } else false
                 if (waitForWifi) {
                     viewModel.updateDownloadStatus(it, true)
@@ -166,7 +188,7 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
             },
             moveVideo = {
                 if (it.url?.toUri()?.scheme == ContentResolver.SCHEME_CONTENT) {
-                    val storage = requireContext().getExternalFilesDirs(".downloads").mapIndexedNotNull { index, file ->
+                    val storage = ContextCompat.getExternalFilesDirs(requireContext(), ".downloads").mapIndexedNotNull { index, file ->
                         file?.absolutePath?.let { path ->
                             if (index == 0) {
                                 getString(R.string.internal_storage) to path
@@ -223,10 +245,22 @@ class DownloadsFragment : PagedListFragment(), Scrollable {
             },
             updateChatUrl = {
                 viewModel.selectedVideo = it
-                chatFileResultLauncher?.launch(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                    type = "*/*"
-                })
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                    chatFileResultLauncher?.launch(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "*/*"
+                    })
+                } else {
+                    try {
+                        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "*/*"
+                        }
+                        chatFileResultLauncher?.launch(intent)
+                    } catch (e: ActivityNotFoundException) {
+                        Toast.makeText(requireContext(), R.string.no_file_manager_found, Toast.LENGTH_LONG).show()
+                    }
+                }
             },
             shareVideo = {
                 it.url?.let { videoUrl ->

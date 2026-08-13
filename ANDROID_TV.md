@@ -11,7 +11,7 @@ available in Player button settings and can be enabled manually.
 
 ## Compatibility
 
-- Android 5.0 / API 21 and newer
+- Android 4.1 / API 16 and newer (Android 4.0 is not supported)
 - Android TV launcher entry and a 320 x 180 launcher banner
 - Touchscreen is optional
 - D-pad focus indicators on content cards
@@ -21,7 +21,7 @@ available in Player button settings and can be enabled manually.
 - Browse cards use D-pad focus styles across both Material 3 and compatibility themes
 - Login opens Twitch's device-code flow directly on TV instead of requiring WebView keyboard input
 
-The dependency versions in `gradle/libs.versions.toml` are intentionally pinned to the newest compatible release lines before their minimum SDK moved to API 23. Do not update those libraries without checking the merged manifest and testing an API 21 device.
+The dependency versions in `gradle/libs.versions.toml` are intentionally pinned to API 16-compatible release lines. Do not update those libraries without checking the merged manifest and testing an Android 4.1 device.
 
 ## Account-free local follows
 
@@ -51,7 +51,7 @@ The Login action remains available for users who want Twitch account features. C
 - Back on a bottom-tab root grid moves focus to that same bottom tab instead of popping to the
   app's default start tab; nested game/channel pages unwind one level at a time
 
-On Android 5 and 6, the in-app mini-player is laid out at its real 16:9 size instead of
+On older Android releases, the in-app mini-player is laid out at its real 16:9 size instead of
 scaling a `SurfaceView` parent. This avoids showing only the upper-left crop of the video.
 
 ## Build

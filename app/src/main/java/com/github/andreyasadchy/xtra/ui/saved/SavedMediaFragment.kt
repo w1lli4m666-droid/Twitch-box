@@ -1,13 +1,20 @@
 package com.github.andreyasadchy.xtra.ui.saved
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.ContentResolver
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
@@ -36,7 +43,9 @@ import com.github.andreyasadchy.xtra.util.TwitchApiHelper
 import com.github.andreyasadchy.xtra.util.getAlertDialogBuilder
 import com.github.andreyasadchy.xtra.util.prefs
 import com.github.andreyasadchy.xtra.util.tokenPrefs
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
+import java.io.File
 
 class SavedMediaFragment : Fragment(), Scrollable, FragmentHost {
 
@@ -54,30 +63,88 @@ class SavedMediaFragment : Fragment(), Scrollable, FragmentHost {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         previousItem = savedInstanceState?.getInt("previousItem", -1) ?: -1
-        folderResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
-                result.data?.data?.let {
-                    requireContext().contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                    viewModel.saveFolders(it.toString())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            folderResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                if (result.resultCode == Activity.RESULT_OK) {
+                    result.data?.data?.let {
+                        requireContext().contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                        viewModel.saveFolders(it.toString())
+                    }
+                }
+            }
+        } else {
+            folderResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                if (result.resultCode == Activity.RESULT_OK) {
+                    result.data?.data?.let {
+                        val isShared = it.scheme == ContentResolver.SCHEME_CONTENT
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && isShared) {
+                            val storage = ContextCompat.getExternalFilesDirs(requireContext(), ".downloads").mapIndexedNotNull { index, file ->
+                                file?.absolutePath?.let { path ->
+                                    if (index == 0) {
+                                        getString(R.string.internal_storage) to path
+                                    } else {
+                                        path.substringBefore("/Android/data", "").takeIf { it.isNotBlank() }?.let {
+                                            it.substringAfterLast(File.separatorChar) to path
+                                        }
+                                    }
+                                }
+                            }
+                            val uri = Uri.decode(it.path).substringAfter("/document/")
+                            val storageName = uri.substringBefore(":")
+                            val storagePath = if (storageName.equals("primary", true)) {
+                                storage.firstOrNull()
+                            } else {
+                                if (storage.size >= 2) {
+                                    storage.lastOrNull()
+                                } else {
+                                    storage.firstOrNull()
+                                }
+                            }?.second?.substringBefore("/Android/data") ?: "/storage/emulated/0"
+                            val path = uri.substringAfter(":").substringBeforeLast("/")
+                            val fullUri = "$storagePath/$path"
+                            viewModel.saveFolders(fullUri)
+                        } else {
+                            it.path?.substringBeforeLast("/")?.let { uri -> viewModel.saveFolders(uri) }
+                        }
+                    }
                 }
             }
         }
-        fileResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
-                val list = mutableListOf<String>()
-                result.data?.clipData?.let { clipData ->
-                    for (i in 0 until clipData.itemCount) {
-                        val item = clipData.getItemAt(i)
-                        item.uri?.let {
-                            requireContext().contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                            list.add(it.toString())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            fileResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                if (result.resultCode == Activity.RESULT_OK) {
+                    val list = mutableListOf<String>()
+                    result.data?.clipData?.let { clipData ->
+                        for (i in 0 until clipData.itemCount) {
+                            val item = clipData.getItemAt(i)
+                            item.uri?.let {
+                                requireContext().contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                                list.add(it.toString())
+                            }
                         }
+                    } ?: result.data?.data?.let {
+                        requireContext().contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                        list.add(it.toString())
                     }
-                } ?: result.data?.data?.let {
-                    requireContext().contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                    list.add(it.toString())
+                    viewModel.saveVideos(list)
                 }
-                viewModel.saveVideos(list)
+            }
+        } else {
+            fileResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                if (result.resultCode == Activity.RESULT_OK) {
+                    val list = mutableListOf<String>()
+                    result.data?.clipData?.let { clipData ->
+                        for (i in 0 until clipData.itemCount) {
+                            val item = clipData.getItemAt(i)
+                            item.uri?.path?.let {
+                                list.add(it)
+                            }
+                        }
+                    } ?: result.data?.data?.path?.let {
+                        list.add(it)
+                    }
+                    viewModel.saveVideos(list)
+                }
             }
         }
     }
@@ -121,15 +188,42 @@ class SavedMediaFragment : Fragment(), Scrollable, FragmentHost {
                         true
                     }
                     R.id.importFolders -> {
-                        folderResultLauncher?.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE))
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            folderResultLauncher?.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE))
+                        } else {
+                            try {
+                                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                                    addCategory(Intent.CATEGORY_OPENABLE)
+                                    type = "*/*"
+                                }
+                                folderResultLauncher?.launch(intent)
+                            } catch (e: ActivityNotFoundException) {
+                                Toast.makeText(requireContext(), R.string.no_file_manager_found, Toast.LENGTH_LONG).show()
+                            }
+                        }
                         true
                     }
                     R.id.importFiles -> {
-                        fileResultLauncher?.launch(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                            addCategory(Intent.CATEGORY_OPENABLE)
-                            type = "*/*"
-                            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-                        })
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                            fileResultLauncher?.launch(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                                addCategory(Intent.CATEGORY_OPENABLE)
+                                type = "*/*"
+                                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                            })
+                        } else {
+                            try {
+                                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                                    addCategory(Intent.CATEGORY_OPENABLE)
+                                    type = "*/*"
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+                                        putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                                    }
+                                }
+                                fileResultLauncher?.launch(intent)
+                            } catch (e: ActivityNotFoundException) {
+                                Toast.makeText(requireContext(), R.string.no_file_manager_found, Toast.LENGTH_LONG).show()
+                            }
+                        }
                         true
                     }
                     else -> false
@@ -185,6 +279,13 @@ class SavedMediaFragment : Fragment(), Scrollable, FragmentHost {
                 }
                 if (previousItem <= tabs.lastIndex) {
                     setText(adapter.getItem(previousItem).toString(), false)
+                }
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                    isFocusable = true
+                    isEnabled = false
+                    setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface))
+                } else {
+                    setRawInputType(InputType.TYPE_NULL)
                 }
             }
             childFragmentManager.registerFragmentLifecycleCallbacks(object : FragmentManager.FragmentLifecycleCallbacks() {

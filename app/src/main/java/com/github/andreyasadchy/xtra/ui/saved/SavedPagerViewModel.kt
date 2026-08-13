@@ -2,6 +2,7 @@ package com.github.andreyasadchy.xtra.ui.saved
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.provider.DocumentsContract
 import android.util.JsonReader
 import androidx.core.net.toUri
@@ -17,6 +18,9 @@ import com.github.andreyasadchy.xtra.util.m3u8.PlaylistUtils
 import com.github.andreyasadchy.xtra.util.m3u8.Segment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import kotlin.math.max
 
 class SavedPagerViewModel(
@@ -26,137 +30,234 @@ class SavedPagerViewModel(
 
     fun saveFolders(url: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val documentId = DocumentsContract.getTreeDocumentId(url.toUri())
-            val directoryUri = DocumentsContract.buildDocumentUriUsingTree(url.toUri(), documentId)
-            val directoryUris = mutableListOf<Uri>()
-            val chatFiles = mutableMapOf<String, String>()
-            applicationContext.contentResolver.query(
-                DocumentsContract.buildChildDocumentsUriUsingTree(directoryUri, documentId),
-                arrayOf(
-                    DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-                    DocumentsContract.Document.COLUMN_MIME_TYPE,
-                ), null, null, null
-            ).use { cursor ->
-                while (cursor?.moveToNext() == true) {
-                    val documentId = cursor.getString(0)
-                    val mimeType = cursor.getString(1)
-                    if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
-                        val directoryUri = DocumentsContract.buildChildDocumentsUriUsingTree(directoryUri, documentId)
-                        directoryUris.add(directoryUri)
-                    } else {
-                        val documentUri = DocumentsContract.buildDocumentUriUsingTree(directoryUri, documentId)
-                        if (documentUri.toString().endsWith(".json")) {
-                            val fileName = documentUri.toString().substringAfterLast("%2F").substringAfterLast("%3A").removeSuffix(".json").removeSuffix("_chat")
-                            chatFiles[fileName] = documentUri.toString()
-                        }
-                    }
-                }
-            }
-            val playlistFileUris = mutableListOf<Uri>()
-            directoryUris.forEach { uri ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val documentId = DocumentsContract.getTreeDocumentId(url.toUri())
+                val directoryUri = DocumentsContract.buildDocumentUriUsingTree(url.toUri(), documentId)
+                val directoryUris = mutableListOf<Uri>()
+                val chatFiles = mutableMapOf<String, String>()
                 applicationContext.contentResolver.query(
-                    uri,
+                    DocumentsContract.buildChildDocumentsUriUsingTree(directoryUri, documentId),
                     arrayOf(
                         DocumentsContract.Document.COLUMN_DOCUMENT_ID,
                         DocumentsContract.Document.COLUMN_MIME_TYPE,
-                    ),
-                    null, null, null
+                    ), null, null, null
                 ).use { cursor ->
                     while (cursor?.moveToNext() == true) {
                         val documentId = cursor.getString(0)
                         val mimeType = cursor.getString(1)
-                        if (mimeType != DocumentsContract.Document.MIME_TYPE_DIR) {
+                        if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
+                            val directoryUri = DocumentsContract.buildChildDocumentsUriUsingTree(directoryUri, documentId)
+                            directoryUris.add(directoryUri)
+                        } else {
                             val documentUri = DocumentsContract.buildDocumentUriUsingTree(directoryUri, documentId)
-                            if (documentUri.toString().endsWith(".m3u8")) {
-                                playlistFileUris.add(documentUri)
+                            if (documentUri.toString().endsWith(".json")) {
+                                val fileName = documentUri.toString().substringAfterLast("%2F").substringAfterLast("%3A").removeSuffix(".json").removeSuffix("_chat")
+                                chatFiles[fileName] = documentUri.toString()
                             }
                         }
                     }
                 }
-            }
-            playlistFileUris.forEach { uri ->
-                val existingVideo = offlineVideosRepository.getByUrl(uri.toString())
-                if (existingVideo == null) {
-                    val videoDirectoryUri = uri.toString().substringBeforeLast("%2F")
-                    val videoDirectoryName = videoDirectoryUri.substringAfterLast("%2F").substringAfterLast("%3A")
-                    val playlist = applicationContext.contentResolver.openInputStream(uri)!!.use {
-                        PlaylistUtils.parseMediaPlaylist(it)
+                val playlistFileUris = mutableListOf<Uri>()
+                directoryUris.forEach { uri ->
+                    applicationContext.contentResolver.query(
+                        uri,
+                        arrayOf(
+                            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                            DocumentsContract.Document.COLUMN_MIME_TYPE,
+                        ),
+                        null, null, null
+                    ).use { cursor ->
+                        while (cursor?.moveToNext() == true) {
+                            val documentId = cursor.getString(0)
+                            val mimeType = cursor.getString(1)
+                            if (mimeType != DocumentsContract.Document.MIME_TYPE_DIR) {
+                                val documentUri = DocumentsContract.buildDocumentUriUsingTree(directoryUri, documentId)
+                                if (documentUri.toString().endsWith(".m3u8")) {
+                                    playlistFileUris.add(documentUri)
+                                }
+                            }
+                        }
                     }
-                    var totalDuration = 0L
-                    val segments = ArrayList<Segment>()
-                    playlist.segments.forEach { segment ->
-                        totalDuration += (segment.duration * 1000f).toLong()
-                        segments.add(segment.copy(uri = videoDirectoryUri + "%2F" + segment.uri.substringAfterLast("%2F").substringAfterLast("/")))
+                }
+                playlistFileUris.forEach { uri ->
+                    val existingVideo = offlineVideosRepository.getByUrl(uri.toString())
+                    if (existingVideo == null) {
+                        val videoDirectoryUri = uri.toString().substringBeforeLast("%2F")
+                        val videoDirectoryName = videoDirectoryUri.substringAfterLast("%2F").substringAfterLast("%3A")
+                        val playlist = applicationContext.contentResolver.openInputStream(uri)!!.use {
+                            PlaylistUtils.parseMediaPlaylist(it)
+                        }
+                        var totalDuration = 0L
+                        val segments = ArrayList<Segment>()
+                        playlist.segments.forEach { segment ->
+                            totalDuration += (segment.duration * 1000f).toLong()
+                            segments.add(segment.copy(uri = videoDirectoryUri + "%2F" + segment.uri.substringAfterLast("%2F").substringAfterLast("/")))
+                        }
+                        applicationContext.contentResolver.openOutputStream(uri)!!.use {
+                            PlaylistUtils.writeMediaPlaylist(playlist.copy(
+                                initSegmentUri = playlist.initSegmentUri?.let { uri -> videoDirectoryUri + "%2F" + uri.substringAfterLast("%2F").substringAfterLast("/") },
+                                segments = segments
+                            ), it)
+                        }
+                        val chatFileUri = chatFiles[videoDirectoryName + uri.toString().substringAfterLast("%2F").removeSuffix(".m3u8")]
+                        var id: String? = null
+                        var title: String? = null
+                        var uploadDate: Long? = null
+                        var channelId: String? = null
+                        var channelLogin: String? = null
+                        var channelName: String? = null
+                        var gameId: String? = null
+                        var gameSlug: String? = null
+                        var gameName: String? = null
+                        chatFileUri?.let { chatFileUri ->
+                            try {
+                                applicationContext.contentResolver.openInputStream(chatFileUri.toUri())!!.bufferedReader().use { fileReader ->
+                                    JsonReader(fileReader).use { reader ->
+                                        reader.beginObject()
+                                        while (reader.hasNext()) {
+                                            when (reader.nextName()) {
+                                                "video" -> {
+                                                    reader.beginObject()
+                                                    while (reader.hasNext()) {
+                                                        when (reader.nextName()) {
+                                                            "id" -> id = reader.nextString()
+                                                            "title" -> title = reader.nextString()
+                                                            "uploadDate" -> uploadDate = reader.nextLong()
+                                                            "channelId" -> channelId = reader.nextString()
+                                                            "channelLogin" -> channelLogin = reader.nextString()
+                                                            "channelName" -> channelName = reader.nextString()
+                                                            "gameId" -> gameId = reader.nextString()
+                                                            "gameSlug" -> gameSlug = reader.nextString()
+                                                            "gameName" -> gameName = reader.nextString()
+                                                            else -> reader.skipValue()
+                                                        }
+                                                    }
+                                                    reader.endObject()
+                                                }
+                                                else -> reader.skipValue()
+                                            }
+                                        }
+                                        reader.endObject()
+                                    }
+                                }
+                            } catch (e: Exception) {
+
+                            }
+                        }
+                        offlineVideosRepository.save(OfflineVideo(
+                            url = uri.toString(),
+                            name = if (!title.isNullOrBlank()) title else Uri.decode(videoDirectoryName),
+                            channelId = if (!channelId.isNullOrBlank()) channelId else null,
+                            channelLogin = if (!channelLogin.isNullOrBlank()) channelLogin else null,
+                            channelName = if (!channelName.isNullOrBlank()) channelName else null,
+                            thumbnail = segments.getOrNull(max(0, (segments.size / 2) - 1))?.uri,
+                            gameId = if (!gameId.isNullOrBlank()) gameId else null,
+                            gameSlug = if (!gameSlug.isNullOrBlank()) gameSlug else null,
+                            gameName = if (!gameName.isNullOrBlank()) gameName else null,
+                            duration = totalDuration,
+                            uploadDate = uploadDate,
+                            progress = 100,
+                            maxProgress = 100,
+                            status = OfflineVideo.STATUS_DOWNLOADED,
+                            videoId = if (!id.isNullOrBlank()) id else null,
+                            chatUrl = chatFileUri
+                        ))
                     }
-                    applicationContext.contentResolver.openOutputStream(uri)!!.use {
-                        PlaylistUtils.writeMediaPlaylist(playlist.copy(
-                            initSegmentUri = playlist.initSegmentUri?.let { uri -> videoDirectoryUri + "%2F" + uri.substringAfterLast("%2F").substringAfterLast("/") },
-                            segments = segments
-                        ), it)
+                }
+            } else {
+                val chatFiles = mutableMapOf<String, String>()
+                File(url).listFiles()?.let { files ->
+                    files.filter { it.isFile && it.name.endsWith(".json") }.forEach { chatFile ->
+                        chatFile.name.let {
+                            chatFiles[it.removeSuffix(".json").removeSuffix("_chat")] = chatFile.path
+                        }
                     }
-                    val chatFileUri = chatFiles[videoDirectoryName + uri.toString().substringAfterLast("%2F").removeSuffix(".m3u8")]
-                    var id: String? = null
-                    var title: String? = null
-                    var uploadDate: Long? = null
-                    var channelId: String? = null
-                    var channelLogin: String? = null
-                    var channelName: String? = null
-                    var gameId: String? = null
-                    var gameSlug: String? = null
-                    var gameName: String? = null
-                    chatFileUri?.let { chatFileUri ->
-                        try {
-                            applicationContext.contentResolver.openInputStream(chatFileUri.toUri())!!.bufferedReader().use { fileReader ->
-                                JsonReader(fileReader).use { reader ->
-                                    reader.beginObject()
-                                    while (reader.hasNext()) {
-                                        when (reader.nextName()) {
-                                            "video" -> {
+                    files.filter { it.isDirectory }.forEach { videoDirectory ->
+                        videoDirectory.listFiles()?.filter { it.name.endsWith(".m3u8") }?.forEach { playlistFile ->
+                            val existingVideo = offlineVideosRepository.getByUrl(playlistFile.path)
+                            if (existingVideo == null) {
+                                val playlist = FileInputStream(playlistFile).use {
+                                    PlaylistUtils.parseMediaPlaylist(it)
+                                }
+                                var totalDuration = 0L
+                                val segments = ArrayList<Segment>()
+                                playlist.segments.forEach { segment ->
+                                    totalDuration += (segment.duration * 1000f).toLong()
+                                    segments.add(segment.copy(uri = segment.uri.substringAfterLast("%2F").substringAfterLast("/")))
+                                }
+                                FileOutputStream(playlistFile).use {
+                                    PlaylistUtils.writeMediaPlaylist(playlist.copy(
+                                        initSegmentUri = playlist.initSegmentUri?.substringAfterLast("%2F")?.substringAfterLast("/"),
+                                        segments = segments
+                                    ), it)
+                                }
+                                val chatFile = chatFiles[videoDirectory.name + playlistFile.name.removeSuffix(".m3u8")]
+                                var id: String? = null
+                                var title: String? = null
+                                var uploadDate: Long? = null
+                                var channelId: String? = null
+                                var channelLogin: String? = null
+                                var channelName: String? = null
+                                var gameId: String? = null
+                                var gameSlug: String? = null
+                                var gameName: String? = null
+                                chatFile?.let { uri ->
+                                    try {
+                                        FileInputStream(File(uri)).bufferedReader().use { fileReader ->
+                                            JsonReader(fileReader).use { reader ->
                                                 reader.beginObject()
                                                 while (reader.hasNext()) {
                                                     when (reader.nextName()) {
-                                                        "id" -> id = reader.nextString()
-                                                        "title" -> title = reader.nextString()
-                                                        "uploadDate" -> uploadDate = reader.nextLong()
-                                                        "channelId" -> channelId = reader.nextString()
-                                                        "channelLogin" -> channelLogin = reader.nextString()
-                                                        "channelName" -> channelName = reader.nextString()
-                                                        "gameId" -> gameId = reader.nextString()
-                                                        "gameSlug" -> gameSlug = reader.nextString()
-                                                        "gameName" -> gameName = reader.nextString()
+                                                        "video" -> {
+                                                            reader.beginObject()
+                                                            while (reader.hasNext()) {
+                                                                when (reader.nextName()) {
+                                                                    "id" -> id = reader.nextString()
+                                                                    "title" -> title = reader.nextString()
+                                                                    "uploadDate" -> uploadDate = reader.nextLong()
+                                                                    "channelId" -> channelId = reader.nextString()
+                                                                    "channelLogin" -> channelLogin = reader.nextString()
+                                                                    "channelName" -> channelName = reader.nextString()
+                                                                    "gameId" -> gameId = reader.nextString()
+                                                                    "gameSlug" -> gameSlug = reader.nextString()
+                                                                    "gameName" -> gameName = reader.nextString()
+                                                                    else -> reader.skipValue()
+                                                                }
+                                                            }
+                                                            reader.endObject()
+                                                        }
+
                                                         else -> reader.skipValue()
                                                     }
                                                 }
                                                 reader.endObject()
                                             }
-                                            else -> reader.skipValue()
                                         }
-                                    }
-                                    reader.endObject()
-                                }
-                            }
-                        } catch (e: Exception) {
+                                    } catch (e: Exception) {
 
+                                    }
+                                }
+                                offlineVideosRepository.save(OfflineVideo(
+                                    url = playlistFile.path,
+                                    name = if (!title.isNullOrBlank()) title else Uri.decode(videoDirectory.name),
+                                    channelId = if (!channelId.isNullOrBlank()) channelId else null,
+                                    channelLogin = if (!channelLogin.isNullOrBlank()) channelLogin else null,
+                                    channelName = if (!channelName.isNullOrBlank()) channelName else null,
+                                    thumbnail = videoDirectory.path + File.separator + segments.getOrNull(max(0,  (segments.size / 2) - 1))?.uri,
+                                    gameId = if (!gameId.isNullOrBlank()) gameId else null,
+                                    gameSlug = if (!gameSlug.isNullOrBlank()) gameSlug else null,
+                                    gameName = if (!gameName.isNullOrBlank()) gameName else null,
+                                    duration = totalDuration,
+                                    uploadDate = uploadDate,
+                                    progress = 100,
+                                    maxProgress = 100,
+                                    status = OfflineVideo.STATUS_DOWNLOADED,
+                                    videoId = if (!id.isNullOrBlank()) id else null,
+                                    chatUrl = chatFile
+                                ))
+                            }
                         }
                     }
-                    offlineVideosRepository.save(OfflineVideo(
-                        url = uri.toString(),
-                        name = if (!title.isNullOrBlank()) title else Uri.decode(videoDirectoryName),
-                        channelId = if (!channelId.isNullOrBlank()) channelId else null,
-                        channelLogin = if (!channelLogin.isNullOrBlank()) channelLogin else null,
-                        channelName = if (!channelName.isNullOrBlank()) channelName else null,
-                        thumbnail = segments.getOrNull(max(0, (segments.size / 2) - 1))?.uri,
-                        gameId = if (!gameId.isNullOrBlank()) gameId else null,
-                        gameSlug = if (!gameSlug.isNullOrBlank()) gameSlug else null,
-                        gameName = if (!gameName.isNullOrBlank()) gameName else null,
-                        duration = totalDuration,
-                        uploadDate = uploadDate,
-                        progress = 100,
-                        maxProgress = 100,
-                        status = OfflineVideo.STATUS_DOWNLOADED,
-                        videoId = if (!id.isNullOrBlank()) id else null,
-                        chatUrl = chatFileUri
-                    ))
                 }
             }
         }
@@ -166,13 +267,13 @@ class SavedPagerViewModel(
         viewModelScope.launch {
             val chatFiles = mutableMapOf<String, String>()
             list.filter { it.endsWith(".json") }.forEach { url ->
-                val fileName = url.substringAfterLast("%2F").substringAfterLast("%3A").removeSuffix(".json").removeSuffix("_chat")
+                val fileName = url.substringAfterLast("%2F").substringAfterLast("%3A").substringAfterLast("/").removeSuffix(".json").removeSuffix("_chat")
                 chatFiles[fileName] = url
             }
             list.filter { !it.endsWith(".json") }.forEach { url ->
                 val existingVideo = offlineVideosRepository.getByUrl(url)
                 if (existingVideo == null) {
-                    val fileName = url.substringAfterLast("%2F").substringAfterLast("%3A").removeSuffix(".mp4").removeSuffix(".ts")
+                    val fileName = url.substringAfterLast("%2F").substringAfterLast("%3A").substringAfterLast("/").removeSuffix(".mp4").removeSuffix(".ts")
                     val chatFile = chatFiles[fileName]
                     var id: String? = null
                     var title: String? = null
@@ -185,7 +286,11 @@ class SavedPagerViewModel(
                     var gameName: String? = null
                     chatFile?.let { uri ->
                         try {
-                            applicationContext.contentResolver.openInputStream(uri.toUri())?.bufferedReader()?.use { fileReader ->
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                                applicationContext.contentResolver.openInputStream(uri.toUri())?.bufferedReader()
+                            } else {
+                                FileInputStream(File(uri)).bufferedReader()
+                            }?.use { fileReader ->
                                 JsonReader(fileReader).use { reader ->
                                     reader.beginObject()
                                     while (reader.hasNext()) {

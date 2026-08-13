@@ -2,6 +2,7 @@
 <resources>
     <color name="darkScrim">#801B1B1B</color>
     <color name="lightScrim">#E6FFFFFF</color>
+    <color name="darkScrimOnLightSurface">#8D8B8D</color>
     <color name="accent">#007DCA</color>
     <color name="surfaceAmoled">#ff000000</color>
     <color name="surfaceContainerAmoled">#0C0C0C</color>
